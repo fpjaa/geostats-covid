@@ -12,16 +12,13 @@
 ## Clear the workspace
 rm(list=ls())
 
-## Set working directory 
-setwd('/home/fpjaa/Desktop/Tesi/ASP')
-
 ## Functions for graphics 
 #v.f <- function(x, ...){100-cov.spatial(x, ...)}
 #v.f.est<-function(x,C0, ...){C0-cov.spatial(x, ...)}
 
 #### Load and see data ####
 
-setwd('/home/fpjaa/Desktop/Tesi/eurostat_datasets')
+setwd('/home/fpjaa/Documents/GitHub/geostats-covid/eurostat_datasets/')
 library(readr)
 
 #import TSV file into data frame
@@ -131,7 +128,7 @@ means_by_country <- means_by_country[, -1] %>%
   group_by(country) %>%
   summarise_all("mean", na.rm = TRUE)
 
-setwd('/home/fpjaa/Desktop/Tesi/ASP')
+setwd('/home/fpjaa/Documents/GitHub/geostats-covid/')
 
 data <- read.csv("ASPdataset.csv", header=TRUE, stringsAsFactors=FALSE)
 data <- data[, -c(25, 26, 27, 28)]
@@ -323,6 +320,9 @@ rm(fill, locations, lost, spdf, data, i, lat, lon, new, nuts)
 
 dataset$latitude <- as.numeric(dataset$latitude)
 dataset$longitude <- as.numeric(dataset$longitude)
+
+
+write_csv(dataset, 'dataset.csv')
 
 #### Map plots ----
 
