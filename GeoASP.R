@@ -285,13 +285,42 @@ data <- read.csv("ASPdataset.csv", header=TRUE, stringsAsFactors=FALSE)
 data <- data[, -c(25, 26, 27, 28)]
 data <- data[!is.na(data$cases_density_first_wave),]
 
+missing <- is.na(data)
+missing <- rowSums(missing)
+
+data$country = substr(data$NUTS,1,2)
+countries <- merge(data[,c(1,27)], country_data[,c(1,2)], by = 'country')
+countries$name <- replace(countries$name, countries$name=="Germany (until 1990 former territory of the FRG)", "Germany")
+
+countries <- countries$name
+missing <- data.frame(countries, missing)
+colnames(missing) <- c('country', 'nans')
+missing$nans <- as.integer(missing$nans)
+
+missing <- missing %>%
+  group_by(country) %>%
+  summarise_all("max", na.rm = TRUE)
+
+par(mfrow=c(1,1))
+barplot(height = missing$nans,
+        names.arg = missing$country,
+        main = "Missing features by country",
+        xlab = "Country",
+        ylab = "",
+        col = "darkblue",
+        las = 1,
+        cex.names = 1,
+        horiz = TRUE)
+
+rm(countries, missing)
+
 #### Assessment for data filling: Preparation ----
 
 my.max <- function(x) ifelse( !all(is.na(x)), max(x, na.rm=T), NA)
 my.min <- function(x) ifelse( !all(is.na(x)), min(x, na.rm=T), NA)
 err <- data.frame(matrix(ncol = 24, nrow = 4))
-colnames(max_err)[1] <- 'type'
-colnames(max_err)[2:24] <- colnames(country_data)[3:25]
+colnames(err)[1] <- 'type'
+colnames(err)[2:24] <- colnames(country_data)[3:25]
 
 #### Fill NAs: Trial by national mean ----
 
@@ -303,42 +332,34 @@ data1 <- merge(data[,c(1,27)], means_by_country, by = 'country')
 errors <- data.frame(matrix(ncol = 24, nrow = 141))
 errors[,1] <- data1[,2]
 colnames(errors) <- colnames(data1)[2:25]
-for (i in 2:24){
-  errors[,i] <- (data1[,i+1] - data[,i])/data[,i]  # Percentage of original
+for (r in 1:141){
+  for (c in 2:24){
+    if (!is.na(data[r,c]) && !is.na(data1[r,c+1]) && data[r,c] != 0){
+      errors[r,c] <- (data1[r,c+1] - data[r,c])/data[r,c]
+    }
+  }
 }
 
-max_err[1,1] <- 'mean_max'
-max_err[1,2:24] <- apply(errors[,2:24], 2, my.max)
-max_err[2,1] <- 'mean_min'
-max_err[2,2:24] <- apply(errors[,2:24], 2, my.min)
-
-par(mfrow=c(1,2))
-boxplot(errors$utilized)
+err[1,1] <- 'mean'
+err[1,2:24] <- apply(errors[,2:24], 2, my.max) - apply(errors[,2:24], 2, my.min)
 
 # Fill data
-for (i in 2:24){
-  data[,i] <- ifelse(is.na(data[,i]), data1[,i+1], data[,i])
-}
+#for (i in 2:24){ data[,i] <- ifelse(is.na(data[,i]), data1[,i+1], data[,i]) }
 
 # Check NAs that werent filled
-means_by_country <- data[, -c(1, 25, 26)] %>%
-  group_by(country) %>%
-  summarise_all("mean", na.rm = TRUE)
 
-missing <- is.na(means_by_country)
-missing <- rowSums(missing)
-missing <- data.frame(cbind(means_by_country$country, missing))
-colnames(missing) <- c('country', 'nans')
-missing$nans <- as.numeric(missing$nans)
+#means_by_country <- data[, -c(1, 25, 26)] %>%
+#  group_by(country) %>%
+#  summarise_all("mean", na.rm = TRUE)
 
-par(mfrow=c(1,1))
-barplot(missing$nans,
-        main = "Missing features by country",
-        xlab = "Country",
-        ylab = "NAs",
-        names.arg = missing$country,
-        col = "darkred",
-        horiz = FALSE)
+#missing <- is.na(means_by_country)
+#missing <- rowSums(missing)
+#missing <- data.frame(cbind(means_by_country$country, missing))
+#colnames(missing) <- c('country', 'nans')
+#missing$nans <- as.numeric(missing$nans)
+
+#par(mfrow=c(1,1))
+#barplot(missing$nans, main = "Missing features by country", xlab = "Country", ylab = "NAs", names.arg = missing$country, col = "darkred", horiz = FALSE)
 
 # [DE] Germany (until 1990 former territory of the FRG)
 # CY or PT for longterm beds doesn't exist
@@ -355,51 +376,45 @@ errors[,1] <- data1[,2]
 colnames(errors) <- colnames(data1)[3:26]
 for (r in 1:141){
   for (c in 2:24){
-    if (!is.na(data[r,c]) && !is.na(data1[r,c+1])){
+    if (!is.na(data[r,c]) && !is.na(data1[r,c+1]) && data[r,c] != 0){
       replace <- data1[r,c+2]*data[r,17]/data1[r,19]
       errors[r,c] <- (replace - data[r,c])/data[r,c]
     }
   }
 }
 
-max_err[3,1] <- 'pop_max'
-max_err[3,2:24] <- apply(errors[,2:24], 2, my.max)
-max_err[4,1] <- 'pop_min'
-max_err[4,2:24] <- apply(errors[,2:24], 2, my.min)
-
-boxplot(errors$utilized)
+err[2,1] <- 'pop'
+err[2,2:24] <- apply(errors[,2:24], 2, my.max) - apply(errors[,2:24], 2, my.min)
 
 # Fill data
-for (r in 1:141){
-  for (c in 2:24){
-    if (is.na(data[r,c]) && !is.na(data1[r,c+1])){
-      replace <- data1[r,c+2]*data[r,17]/data1[r,19]
-      data[r,c] <- replace
-    }
-  }
-}
+#for (r in 1:141){ for (c in 2:24){ if (is.na(data[r,c]) && !is.na(data1[r,c+1])){ replace <- data1[r,c+2]*data[r,17]/data1[r,19]; data[r,c] <- replace } }
 
 # Check NAs that werent filled
-means_by_country <- data[, -c(1, 25, 26)] %>%
-  group_by(country) %>%
-  summarise_all("mean", na.rm = TRUE)
+#means_by_country <- data[, -c(1, 25, 26)] %>%
+#  group_by(country) %>%
+#  summarise_all("mean", na.rm = TRUE)
 
-missing <- is.na(means_by_country)
-missing <- rowSums(missing)
-missing <- data.frame(cbind(means_by_country$country, missing))
-colnames(missing) <- c('country', 'nans')
-missing$nans <- as.numeric(missing$nans)
+#missing <- is.na(means_by_country)
+#missing <- rowSums(missing)
+#missing <- data.frame(cbind(means_by_country$country, missing))
+#colnames(missing) <- c('country', 'nans')
+#missing$nans <- as.numeric(missing$nans)
 
-par(mfrow=c(1,1))
-barplot(missing$nans,
-        main = "Missing features by country",
-        xlab = "Country",
-        ylab = "NAs",
-        names.arg = missing$country,
-        col = "darkred",
-        horiz = FALSE)
+#par(mfrow=c(1,1))
+#barplot(missing$nans, main = "Missing features by country", xlab = "Country", ylab = "NAs", names.arg = missing$country, col = "darkred", horiz = FALSE)
 
 #### Fill NAs ----
+
+rm(errors, my.max, my.min)
+
+plot(t(log(err[1,2:24])), t(log(err[2,2:24])),
+     ylab="Wins national mean",
+     xlab="Wins population proportion")
+text(t(log(err[1,2:24])), t(log(err[2,2:24])),
+     labels = colnames(err)[2:24], pos = 3, cex=0.6, las=1)
+abline(coef = c(0,1), col="red")
+
+rm(err)
 
 # Fill data: Using means by country
 ## Available hosp beds, causes of death, life expectancy, longterm beds, GVA
@@ -418,27 +433,64 @@ for (r in 1:141){
   }
 }
 
-# Check NAs that werent filled
-means_by_country <- data[, -c(1, 25, 26)] %>%
-  group_by(country) %>%
-  summarise_all("mean", na.rm = TRUE)
+rm(data1, means_by_country, c, r, i, replace)
 
-missing <- is.na(means_by_country)
+# Fix data fill that is supposed to be integer
+## Deaths (ok), population (ok), pupils (to do), students (to do),
+## farm labour force (to do) and utilised agricultural area (to do)
+data$deaths <- as.integer(data$deaths)
+data$population_nuts2 <- as.integer(data$population_nuts2)
+data$students_enrolled_in_tertiary_education_by_education_level_programme_orientation_sex_and_nuts2 <- as.integer(data$students_enrolled_in_tertiary_education_by_education_level_programme_orientation_sex_and_nuts2)
+data$pupils_and_students_enrolled_by_sex_age_and_nuts2 <- as.integer(data$pupils_and_students_enrolled_by_sex_age_and_nuts2)
+data$farm_labour_force <- as.integer(data$farm_labour_force)
+data$utilised_agricultural_area <- as.integer(data$utilised_agricultural_area)
+
+# Check NAs that werent filled
+
+missing <- is.na(data[, -c(1, 25, 26)])
 missing <- rowSums(missing)
-missing <- data.frame(cbind(means_by_country$country, missing))
+
+data$country = substr(data$NUTS,1,2)
+countries <- merge(data[,c(1,27)], country_data[,c(1,2)], by = 'country')
+countries$name <- replace(countries$name, countries$name=="Germany (until 1990 former territory of the FRG)", "Germany")
+
+countries <- countries$name
+missing <- data.frame(countries, missing)
 colnames(missing) <- c('country', 'nans')
-missing$nans <- as.numeric(missing$nans)
+missing$nans <- as.integer(missing$nans)
+
+missing <- missing %>%
+  group_by(country) %>%
+  summarise_all("max", na.rm = TRUE)
 
 par(mfrow=c(1,1))
-barplot(missing$nans,
+barplot(height = missing$nans,
+        names.arg = missing$country,
         main = "Missing features by country",
         xlab = "Country",
-        ylab = "NAs",
-        names.arg = missing$country,
-        col = "darkred",
-        horiz = FALSE)
+        ylab = "",
+        col = "darkblue",
+        las = 1,
+        cex.names = 1,
+        horiz = TRUE)
+
+rm(countries, missing, country_data)
 
 #### Summary ----
+
+data1$name <- replace(data1$name, data1$name=="Germany (until 1990 former territory of the FRG)", "Germany")
+regions_by_country <- table(data1$name)
+
+par(mfrow=c(1,1))
+par(mar=c(5,7,4,3)+0.1)  # BLTR
+barplot(regions_by_country,
+        main = "Regions considered by country",
+        xlab = "Amount of regions",
+        ylab = "",
+        col = "darkblue",
+        las = 1,
+        cex.names = 1,
+        horiz = TRUE)
 
 #install.packages('psych')
 library(psych) 
@@ -468,7 +520,7 @@ for (i in 1:2010){
 
 dataset <- merge(data, locations, by = 'NUTS')
 
-lost <- anti_join(data, locations, by="NUTS")
+#lost <- anti_join(data, locations, by="NUTS")
 # FI13 not found -> Candidates FI1C3 FI1D3
 ## Found in 2006
 # FI18 -> FI1D8
@@ -544,7 +596,6 @@ rm(fill, locations, lost, spdf, data, i, lat, lon, new, nuts)
 
 dataset$latitude <- as.numeric(dataset$latitude)
 dataset$longitude <- as.numeric(dataset$longitude)
-
 
 write_csv(dataset, 'dataset.csv')
 
@@ -1093,8 +1144,8 @@ bestlam.lasso
 plot(cv.lasso)
 
 coeffs.table <- coeff2dt(fitobject = cv.lasso, s = 'lambda.min')
-barplot(coeffs.table$coefficient, col = rainbow(dim(x)[2]))
-legend('bottomleft', coeffs.table$name, col =  rainbow(dim(x)[2]), lty=1, cex=0.6)
+barplot(coeffs.table$coefficient[1:11], col = rainbow(dim(x)[2]))
+legend('bottomleft', coeffs.table$name[1:11], col =  rainbow(dim(x)[2]), lty=1, cex=0.6)
 
 rm(x, y, fit.lasso, cv.lasso, bestlam.lasso, lambda.grid)
 
@@ -1105,40 +1156,22 @@ rm(x, y, fit.lasso, cv.lasso, bestlam.lasso, lambda.grid)
 
 # Assumption: Eps ~ N(0, sigma^2)
 
-# Logit transform
-'''
-fm2 <- lm(response2 ~ air_passengers +
-            available_hospital_beds_nuts2 +
-            causes_of_death_crude_death_rate_3year_average_by_nuts2 +
-            compensation_of_employees_by_nuts2 +
-            early_leavers_from_education_and_training_by_sex_percentage_nuts2 +
-            health_personnel_by_nuts2 +
-            life_expectancy +
-            longterm_care_beds_per_hundred_thousand_nuts2 +
-            participation_in_education_and_training +
-            pop_density +
-            pupils_and_students_enrolled_by_sex_age_and_nuts2 +
-            real_growth_rate_of_regional_gross_value_added_GVA_at_basic_prices_by_nuts2 +
-            unemployment_rate_nuts2 +
-            utilised_agricultural_area +
-            young_people_neither_in_employment_nor_in_education_and_training_by_sex_NEET_RATE_nuts2, data=dataset)
-'''
+# Logit transform: Too low
+# Cubic and square root transform: Too low
 
-# Z transform
+# Z transform: Good
 fm2 <- lm(response2 ~ available_hospital_beds_nuts2 +
             causes_of_death_crude_death_rate_3year_average_by_nuts2 +
             compensation_of_employees_by_nuts2 +
             early_leavers_from_education_and_training_by_sex_percentage_nuts2 +
-            farm_labour_force +
-            health_personnel_by_nuts2 +
+            #health_personnel_by_nuts2 +
             life_expectancy +
             longterm_care_beds_per_hundred_thousand_nuts2 +
             participation_in_education_and_training +
             pop_density +
-            pupils_and_students_enrolled_by_sex_age_and_nuts2 +
             real_growth_rate_of_regional_gross_value_added_GVA_at_basic_prices_by_nuts2 +
             students_enrolled_in_tertiary_education_by_education_level_programme_orientation_sex_and_nuts2 +
-            unemployment_rate_nuts2 + 
+            unemployment_rate_nuts2 +
             young_people_neither_in_employment_nor_in_education_and_training_by_sex_NEET_RATE_nuts2, data=dataset)
 
 par(mfrow=c(2,2))
