@@ -16,7 +16,7 @@ rm(list=ls())
 #v.f <- function(x, ...){100-cov.spatial(x, ...)}
 #v.f.est<-function(x,C0, ...){C0-cov.spatial(x, ...)}
 
-#### Load and see data ####
+#### Load data by variable: National means ####
 
 setwd('/home/fpjaa/Documents/GitHub/geostats-covid/eurostat_datasets/')
 library(readr)
@@ -68,7 +68,7 @@ life <- life[,c(1,ncol(life))]
 colnames(life)[ncol(life)] <- 'life'
 
 longterm <- read_tsv('longterm_care_beds_per_hundred_thousand_nuts2.tsv')
-longterm <- longterm[,c(1,ncol(longterm))]
+longterm <- longterm[,c(1,23)]  # Useless, only non NAs in 2015
 colnames(longterm)[ncol(longterm)] <- 'longterm'
 
 nama <- read_tsv('nama_10r_2gdp.tsv')
@@ -128,42 +128,199 @@ means_by_country <- means_by_country[, -1] %>%
   group_by(country) %>%
   summarise_all("mean", na.rm = TRUE)
 
+rm(df_list,
+   air, avail, causes, compens, death, early, employ, farm, health,
+   hosp, life, longterm, nama, partic, popd, popul, pupils, regGVA,
+   stock, students, unempl, utilized, young)
+
+#### Load data by variable: National totals ####
+
+setwd('/home/fpjaa/Documents/GitHub/geostats-covid/datasets_by_country/')
+
+#install.packages("openxlsx")
+library(openxlsx)
+
+air <- read.xlsx('air_passengers_by_country.xlsx', sheet=3)
+air <- air[8:37,c(1,2,ncol(air))]
+colnames(air) <- c('country', 'name', 'air')
+air$air <- as.numeric(air$air)
+
+avail <- read.xlsx('available_hosp_beds_by_country.xlsx', sheet=3)
+avail <- avail[8:44,c(1,ncol(avail)-1)]
+colnames(avail) <- c('name', 'available')
+avail$available <- as.numeric(avail$available)
+
+causes <- read.xlsx('causes_of_death_by_country.xlsx', sheet=3)
+causes <- causes[10:43,c(1,ncol(causes)-1)]
+colnames(causes) <- c('name', 'causes')
+causes$causes <- as.numeric(causes$causes)
+
+compens <- read.xlsx('compensation_by_country.xlsx', sheet=3)
+compens <- compens[8:36,c(1,ncol(compens)-1)]
+colnames(compens) <- c('name', 'compensation')
+compens$compensation <- as.numeric(compens$compensation)
+
+death <- read.xlsx('deaths_by_country.xlsx', sheet=3)
+death <- death[7:43,c(1,2,ncol(death)-1)]
+colnames(death) <- c('country', 'name', 'deaths')
+death$deaths <- as.numeric(death$deaths)
+
+early <- read.xlsx('early_leavers_by_country.xlsx', sheet=3)
+early <- early[9:43,c(1,ncol(early)-1)]
+colnames(early) <- c('name', 'early')
+early$early <- as.numeric(early$early)
+
+employ <- read.xlsx('employment_thous_by_country.xlsx', sheet=3)
+employ <- employ[9:35,c(1,ncol(employ)-1)]
+colnames(employ) <- c('name', 'employment')
+employ$employment <- as.numeric(employ$employ)
+
+farm <- read.xlsx('farm_labour_force_by_country.xlsx', sheet=3)
+farm <- farm[7:37,c(1,ncol(farm))]
+colnames(farm) <- c('name', 'farm')
+farm$farm <- as.numeric(farm$farm)
+
+health <- read.xlsx('health_personnel_by_country.xlsx', sheet=3)
+health <- health[8:44,c(1,ncol(health)-1)]
+colnames(health) <- c('name', 'health')
+health$health <- as.numeric(health$health)
+
+hosp <- read.xlsx('hospital_discharges_by_country.xlsx', sheet=3)
+hosp <- hosp[11:46,c(1,ncol(hosp))]
+colnames(hosp) <- c('name', 'discharges')
+hosp$discharges <- as.numeric(hosp$discharges)
+
+life <- read.xlsx('life_expectancy_by_country.xlsx', sheet=3)
+life <- life[9:45,c(1,2,ncol(life)-1)]
+colnames(life) <- c('country', 'name', 'life')
+life$life <- as.numeric(life$life)
+
+longterm <- read.xlsx('longterm_beds_by_country.xlsx', sheet=3)
+longterm <- longterm[8:42,c(1,ncol(longterm)-1)]
+colnames(longterm) <- c('name', 'longterm')
+longterm$longterm <- as.numeric(longterm$longterm)
+
+nama <- read.xlsx('nama_gdp_by_country.xlsx', sheet=3)
+nama <- nama[7:39,c(1,ncol(nama)-1)]
+colnames(nama) <- c('name', 'nama')
+nama$nama <- as.numeric(nama$nama)
+
+partic <- read.xlsx('participation_rate_by_country.xlsx', sheet=3)
+partic <- partic[9:43,c(1,ncol(partic)-1)]
+colnames(partic) <- c('name', 'participation')
+partic$participation <- as.numeric(partic$participation)
+
+popd <- read.xlsx('pop_density_by_country.xlsx', sheet=3)
+popd <- popd[7:43,c(1,2,ncol(popd)-1)]
+colnames(popd) <- c('country', 'name', 'density')
+popd$density <- as.numeric(popd$density)
+
+popul <- read.xlsx('population_by_country.xlsx', sheet=3)
+popul <- popul[9:45,c(1,2,ncol(popul)-1)]
+colnames(popul) <- c('country', 'name', 'population')
+popul$population <- as.numeric(popul$population)
+
+pupils <- read.xlsx('pupils_by_country.xlsx', sheet=3)
+pupils <- pupils[9:44,c(1,ncol(pupils)-1)]
+colnames(pupils) <- c('name', 'pupils')
+pupils$pupils <- as.numeric(pupils$pupils)
+
+regGVA <- read.xlsx('real_gva_by_country.xlsx', sheet=3)
+regGVA <- regGVA[7:38,c(1,ncol(regGVA)-1)]
+colnames(regGVA) <- c('name', 'rgva')
+regGVA$rgva <- as.numeric(regGVA$rgva)
+
+stock <- read.xlsx('stock_of_vehicles_by_country.xlsx', sheet=3)
+stock <- stock[8:30,c(1,2,ncol(stock))]
+colnames(stock) <- c('country', 'name', 'stock')
+stock$stock <- as.numeric(stock$stock)
+
+students <- read.xlsx('students_enrolled_by_country.xlsx', sheet=3)
+students <- students[9:44,c(1,ncol(students)-1)]
+colnames(students) <- c('name', 'students')
+students$students <- as.numeric(students$students)
+
+unempl <- read.xlsx('unemployment_rate_by_country.xlsx', sheet=3)
+unempl <- unempl[9:35,c(1,ncol(unempl)-1)]
+colnames(unempl) <- c('name', 'unemployment')
+unempl$unemployment <- as.numeric(unempl$unemployment)
+
+utilized <- read.xlsx('utilized_agricultural_by_country.xlsx', sheet=3)
+utilized <- utilized[8:35,c(1,ncol(utilized))]
+colnames(utilized) <- c('name', 'utilized')
+utilized$utilized <- as.numeric(utilized$utilized)
+
+young <- read.xlsx('young_neet_by_country.xlsx', sheet=3)
+young <- young[11:45,c(1,ncol(young)-1)]
+colnames(young) <- c('name', 'neet')
+young$neet <- as.numeric(young$neet)
+
+df_list <- list(air, death, life, popd, popul, stock)
+#merge all data frames together
+country_data <- Reduce(function(x, y) merge(x, y, all=TRUE, by=c('country', 'name')), df_list)
+
+df_list1 <- list(country_data, avail, causes, compens, early, employ, farm, health,
+                hosp, longterm, nama, partic, pupils, regGVA,
+                students, unempl, utilized, young)
+country_data <- Reduce(function(x, y) merge(x, y, all=TRUE, by='name'), df_list1)
+
+rm(df_list,df_list1,
+   air, avail, causes, compens, death, early, employ, farm, health,
+   hosp, life, longterm, nama, partic, popd, popul, pupils, regGVA,
+   stock, students, unempl, utilized, young)
+
+library(dplyr)
+country_data <- country_data %>%
+  select(country, name, air, available, causes, compensation, deaths, early,
+         employment, farm, health, discharges, life, longterm, nama,
+         participation, density, population, pupils, rgva, stock, students,
+         unemployment, utilized, neet) %>%
+  mutate_all(~replace(., . == ":", NA))
+
+#### Load data to complete ----
+
 setwd('/home/fpjaa/Documents/GitHub/geostats-covid/')
 
 data <- read.csv("ASPdataset.csv", header=TRUE, stringsAsFactors=FALSE)
 data <- data[, -c(25, 26, 27, 28)]
 data <- data[!is.na(data$cases_density_first_wave),]
 
-#### Fill NAs ----
+#### Assessment for data filling: Preparation ----
+
+my.max <- function(x) ifelse( !all(is.na(x)), max(x, na.rm=T), NA)
+my.min <- function(x) ifelse( !all(is.na(x)), min(x, na.rm=T), NA)
+err <- data.frame(matrix(ncol = 24, nrow = 4))
+colnames(max_err)[1] <- 'type'
+colnames(max_err)[2:24] <- colnames(country_data)[3:25]
+
+#### Fill NAs: Trial by national mean ----
 
 data$country = substr(data$NUTS,1,2)
 
-missing <- is.na(means_by_country)
-missing <- rowSums(missing)
-missing <- data.frame(cbind(means_by_country$country, missing))
-colnames(missing) <- c('country', 'nans')
-missing$nans <- as.numeric(missing$nans)
-
-par(mfrow=c(1,1))
-barplot(missing$nans,
-        main = "Missing features by country",
-        xlab = "Country",
-        ylab = "NAs",
-        names.arg = missing$country,
-        col = "darkred",
-        horiz = FALSE)
-
 data1 <- merge(data[,c(1,27)], means_by_country, by = 'country')
 
+# Validation
+errors <- data.frame(matrix(ncol = 24, nrow = 141))
+errors[,1] <- data1[,2]
+colnames(errors) <- colnames(data1)[2:25]
+for (i in 2:24){
+  errors[,i] <- (data1[,i+1] - data[,i])/data[,i]  # Percentage of original
+}
+
+max_err[1,1] <- 'mean_max'
+max_err[1,2:24] <- apply(errors[,2:24], 2, my.max)
+max_err[2,1] <- 'mean_min'
+max_err[2,2:24] <- apply(errors[,2:24], 2, my.min)
+
+par(mfrow=c(1,2))
+boxplot(errors$utilized)
+
+# Fill data
 for (i in 2:24){
   data[,i] <- ifelse(is.na(data[,i]), data1[,i+1], data[,i])
 }
 
-rm(data1, df_list,
-   air, avail, causes, compens, death, early, employ, farm, health,
-   hosp, life, longterm, nama, partic, popd, popul, pupils, regGVA,
-   stock, students, unempl, utilized, young)
-
+# Check NAs that werent filled
 means_by_country <- data[, -c(1, 25, 26)] %>%
   group_by(country) %>%
   summarise_all("mean", na.rm = TRUE)
@@ -183,38 +340,105 @@ barplot(missing$nans,
         col = "darkred",
         horiz = FALSE)
 
-#data1 <- merge(data[,c(1,27)], means_by_country, by = 'country')
+# [DE] Germany (until 1990 former territory of the FRG)
+# CY or PT for longterm beds doesn't exist
 
-#for (i in 2:24){ data[,i] <- ifelse(is.na(data[,i]), data1[,i+1], data[,i]) }
+#### Fill NAs: Trial by population proportion ----
 
-#means_by_country <- data[, -c(1, 25, 26)] %>% group_by(country) %>% summarise_all("mean", na.rm = TRUE)
+data$country = substr(data$NUTS,1,2)
 
-#missing <- is.na(means_by_country)
-#missing <- rowSums(missing)
-#missing <- data.frame(cbind(means_by_country$country, missing))
-#colnames(missing) <- c('country', 'nans')
-#missing$nans <- as.numeric(missing$nans)
+data1 <- merge(data[,c(1,27)], country_data, by = 'country')
 
-#par(mfrow=c(1,1))
-#barplot(missing$nans, main = "Missing features by country", xlab = "Country", ylab = "NAs", names.arg = missing$country, col = "darkred", horiz = FALSE)
+# Validation
+errors <- data.frame(matrix(ncol = 24, nrow = 141))
+errors[,1] <- data1[,2]
+colnames(errors) <- colnames(data1)[3:26]
+for (r in 1:141){
+  for (c in 2:24){
+    if (!is.na(data[r,c]) && !is.na(data1[r,c+1])){
+      replace <- data1[r,c+2]*data[r,17]/data1[r,19]
+      errors[r,c] <- (replace - data[r,c])/data[r,c]
+    }
+  }
+}
+
+max_err[3,1] <- 'pop_max'
+max_err[3,2:24] <- apply(errors[,2:24], 2, my.max)
+max_err[4,1] <- 'pop_min'
+max_err[4,2:24] <- apply(errors[,2:24], 2, my.min)
+
+boxplot(errors$utilized)
+
+# Fill data
+for (r in 1:141){
+  for (c in 2:24){
+    if (is.na(data[r,c]) && !is.na(data1[r,c+1])){
+      replace <- data1[r,c+2]*data[r,17]/data1[r,19]
+      data[r,c] <- replace
+    }
+  }
+}
+
+# Check NAs that werent filled
+means_by_country <- data[, -c(1, 25, 26)] %>%
+  group_by(country) %>%
+  summarise_all("mean", na.rm = TRUE)
+
+missing <- is.na(means_by_country)
+missing <- rowSums(missing)
+missing <- data.frame(cbind(means_by_country$country, missing))
+colnames(missing) <- c('country', 'nans')
+missing$nans <- as.numeric(missing$nans)
+
+par(mfrow=c(1,1))
+barplot(missing$nans,
+        main = "Missing features by country",
+        xlab = "Country",
+        ylab = "NAs",
+        names.arg = missing$country,
+        col = "darkred",
+        horiz = FALSE)
+
+#### Fill NAs ----
+
+# Fill data: Using means by country
+## Available hosp beds, causes of death, life expectancy, longterm beds, GVA
+data1 <- merge(data[,c(1,27)], means_by_country, by = 'country')
+for (i in c(3,4,12,13,19)){
+  data[,i] <- ifelse(is.na(data[,i]), data1[,i+1], data[,i])
+}
+# Fill data: Using weights by population
+data1 <- merge(data[,c(1,27)], country_data, by = 'country')
+for (r in 1:141){
+  for (c in c(2,5,6,7,8,9,10,11,14,15,16,18,20,21,22,23,24)){
+    if (is.na(data[r,c]) && !is.na(data1[r,c+1])){
+      replace <- data1[r,c+2]*data[r,17]/data1[r,19]
+      data[r,c] <- replace
+    }
+  }
+}
+
+# Check NAs that werent filled
+means_by_country <- data[, -c(1, 25, 26)] %>%
+  group_by(country) %>%
+  summarise_all("mean", na.rm = TRUE)
+
+missing <- is.na(means_by_country)
+missing <- rowSums(missing)
+missing <- data.frame(cbind(means_by_country$country, missing))
+colnames(missing) <- c('country', 'nans')
+missing$nans <- as.numeric(missing$nans)
+
+par(mfrow=c(1,1))
+barplot(missing$nans,
+        main = "Missing features by country",
+        xlab = "Country",
+        ylab = "NAs",
+        names.arg = missing$country,
+        col = "darkred",
+        horiz = FALSE)
 
 #### Summary ----
-
-#summar <- list(
-#  mean = ~mean(.x, na.rm = TRUE),
-#  sd = ~sd(.x, na.rm = TRUE),
-#  min = ~min(.x, na.rm = TRUE),
-#  q25 = ~quantile(.x, .25, na.rm = TRUE),
-#  median = ~median(.x, na.rm = TRUE),
-#  q75 = ~quantile(.x, .75, na.rm = TRUE),
-#  max = ~max(.x, na.rm = TRUE)
-#)
-
-#resumen <- data.frame(t(data[,-c(1,25, 26, 27)])) %>% rowwise() %>% 
-#  summarise(mean = rowMeans(), sd = sd, min = min, q25 = quantile(., .25), median = median,
-#            q75 = quantile(., .75), max = max)
-
-#resumen <- summary(data[,-c(1,25, 26, 27)])
 
 #install.packages('psych')
 library(psych) 
@@ -614,6 +838,8 @@ hist((jointdataset$cases_density_second_wave)^(1/3), breaks=16, col="grey", main
 
 #### LASSO ----
 
+dataset <- read.csv("dataset.csv", header=TRUE, stringsAsFactors=FALSE)
+
 #install.packages('glmnet')
 library(glmnet)
 
@@ -683,12 +909,12 @@ bestlam.lasso
 plot(cv.lasso)
 
 coeffs.table <- coeff2dt(fitobject = cv.lasso, s = 'lambda.min')
-barplot(coeffs.table$coefficient, col = rainbow(dim(x)[2]))
-legend('bottomleft', coeffs.table$name, col =  rainbow(dim(x)[2]), lty=1, cex=0.6)
+barplot(coeffs.table$coefficient[1:14], col = rainbow(dim(x)[2]))
+legend('bottomleft', coeffs.table$name[1:14], col =  rainbow(dim(x)[2]), lty=1, cex=0.5)
 
 rm(x, y, fit.lasso, cv.lasso, bestlam.lasso, lambda.grid)
 
-##### Wave 1 residuals -----------------
+#### Wave 1 residuals -----------------
 
 #library(MASS)
 #library(car)
@@ -872,7 +1098,7 @@ legend('bottomleft', coeffs.table$name, col =  rainbow(dim(x)[2]), lty=1, cex=0.
 
 rm(x, y, fit.lasso, cv.lasso, bestlam.lasso, lambda.grid)
 
-##### Wave 2 residuals -----------------
+#### Wave 2 residuals -----------------
 
 #library(MASS)
 #library(car)
@@ -994,3 +1220,35 @@ plot(v, v.fit2, pch = 19, main="Pentaspherical model")
 plot(v, v.fit3, pch = 19, main="Bessel model")
 
 rm(resid_w2, v, v.fit1, v.fit2, v.fit3, coff)
+
+#### LISA ----
+
+library(geojsonR)
+spdf <- FROM_GeoJson("NUTS_RG_20M_2021_4326.geojson")
+
+spdf[["features"]][[80]][["geometry"]][["type"]] <- "MultiPolygon"
+spdf[["features"]][[129]][["geometry"]][["type"]] <- "MultiPolygon"
+
+locations <- data.frame(matrix(ncol = 2, nrow = 0))
+colnames(locations) <- c('Country', 'Points')
+for (i in 1:2010){
+  if (spdf[["features"]][[i]][["geometry"]][["type"]] == "MultiPolygon"){
+    lat <- list(spdf[["features"]][[i]][["geometry"]][["coordinates"]])
+    nuts <- spdf[["features"]][[i]][["id"]]
+    new <- c(nuts, lat)                       # Create new row
+    locations[nrow(locations) + 1, ] <- new
+  }
+  if (spdf[["features"]][[i]][["geometry"]][["type"]] == "Polygon"){
+    lat <- list(list(spdf[["features"]][[i]][["geometry"]][["coordinates"]][,1]),
+                list(spdf[["features"]][[i]][["geometry"]][["coordinates"]][,2]))
+    nuts <- spdf[["features"]][[i]][["id"]]
+    new <- c(nuts, lat)                       # Create new row
+    locations[nrow(locations) + 1, ] <- new
+  }
+}
+
+library(rgeoda)
+library(sf)
+
+nuts_path <- system.file("extdata", "NUTS_RG_20M_2021_4326.shp", package = "rgeoda")
+nuts_polyg <- st_read("NUTS_RG_20M_2021_4326.shp")
