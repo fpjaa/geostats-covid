@@ -2,10 +2,11 @@
 ### Thesis: ASP data + Geostatistics ###
 ###----------------------------------###
 
-## Load spatial packages
+## Load packages
 
-#library(lattice)      ## Data management
-#library(geoR)         ## Geostatistics
+library(readr)  # Read tsv for national means
+library(dplyr)  # Data management all over the code
+
 
 #### Setup ####
 
@@ -19,7 +20,6 @@ rm(list=ls())
 #### Load data by variable: National means ####
 
 setwd('/home/fpjaa/Documents/GitHub/geostats-covid/eurostat_datasets/')
-library(readr)
 
 #import TSV file into data frame
 
@@ -123,7 +123,6 @@ means_by_country <- Reduce(function(x, y) merge(x, y, all=TRUE, by='geo'), df_li
 
 means_by_country$country = substr(means_by_country$geo,1,2)
 
-library(dplyr)
 means_by_country <- means_by_country[, -1] %>%
   group_by(country) %>%
   summarise_all("mean", na.rm = TRUE)
@@ -1164,6 +1163,27 @@ resid_w1$latitude <- as.numeric(resid_w1$latitude)
 resid_w1$longitude <- as.numeric(resid_w1$longitude)
 resid_w1$residuals.fm1. <- as.numeric(resid_w1$residuals.fm1.)
 resid_w1$Row.names <- as.numeric(resid_w1$Row.names)
+
+library(plotly)
+library(ggplot2)
+
+g <- list(scope = 'europe',
+          resolution = 50,
+          showland = TRUE,
+          landcolor = toRGB("gray85"),
+          showframe = TRUE,
+          showcountries = T,
+          countrycolor = toRGB("gray50"))
+
+fig <- plot_geo(resid_w1, sizes = c(1, 126))
+fig <- fig %>% add_markers(
+  x = ~latitude, y = ~longitude, size=~1, color = ~residuals.fm1., hoverinfo = "text",
+  text = ~paste(resid_w1$Row.names)
+)
+fig <- fig %>% layout(title = 'Residuals over Europe',
+                      geo = g) %>% colorbar(title = "Model residuals<br />First wave")
+fig
+
 coordinates(resid_w1) <- c('latitude','longitude')
 
 # sample variogram (binned estimator)
@@ -1334,6 +1354,27 @@ resid_w2$latitude <- as.numeric(resid_w2$latitude)
 resid_w2$longitude <- as.numeric(resid_w2$longitude)
 resid_w2$residuals.fm2. <- as.numeric(resid_w2$residuals.fm2.)
 resid_w2$Row.names <- as.numeric(resid_w2$Row.names)
+
+library(plotly)
+library(ggplot2)
+
+g <- list(scope = 'europe',
+  resolution = 50,
+  showland = TRUE,
+  landcolor = toRGB("gray85"),
+  showframe = TRUE,
+  showcountries = T,
+  countrycolor = toRGB("gray50"))
+
+fig <- plot_geo(resid_w2, sizes = c(1, 126))
+fig <- fig %>% add_markers(
+  x = ~latitude, y = ~longitude, size=~1, color = ~residuals.fm2., hoverinfo = "text",
+  text = ~paste(resid_w2$Row.names)
+)
+fig <- fig %>% layout(title = 'Residuals over Europe',
+                      geo = g) %>% colorbar(title = "Model residuals<br />Second wave")
+fig
+
 coordinates(resid_w2) <- c('latitude','longitude')
 
 # sample variogram (binned estimator)
@@ -1403,32 +1444,37 @@ rm(resid_w2, v, v.fit1, v.fit2, v.fit3, coff)
 
 #### LISA ----
 
-library(geojsonR)
-spdf <- FROM_GeoJson("NUTS_RG_20M_2021_4326.geojson")
-
-spdf[["features"]][[80]][["geometry"]][["type"]] <- "MultiPolygon"
-spdf[["features"]][[129]][["geometry"]][["type"]] <- "MultiPolygon"
-
-locations <- data.frame(matrix(ncol = 2, nrow = 0))
-colnames(locations) <- c('Country', 'Points')
-for (i in 1:2010){
-  if (spdf[["features"]][[i]][["geometry"]][["type"]] == "MultiPolygon"){
-    lat <- list(spdf[["features"]][[i]][["geometry"]][["coordinates"]])
-    nuts <- spdf[["features"]][[i]][["id"]]
-    new <- c(nuts, lat)                       # Create new row
-    locations[nrow(locations) + 1, ] <- new
-  }
-  if (spdf[["features"]][[i]][["geometry"]][["type"]] == "Polygon"){
-    lat <- list(list(spdf[["features"]][[i]][["geometry"]][["coordinates"]][,1]),
-                list(spdf[["features"]][[i]][["geometry"]][["coordinates"]][,2]))
-    nuts <- spdf[["features"]][[i]][["id"]]
-    new <- c(nuts, lat)                       # Create new row
-    locations[nrow(locations) + 1, ] <- new
-  }
-}
-
 library(rgeoda)
 library(sf)
 
-nuts_path <- system.file("extdata", "NUTS_RG_20M_2021_4326.shp", package = "rgeoda")
+setwd('/home/fpjaa/Documents/GitHub/geostats-covid/Polygons/')
 nuts_polyg <- st_read("NUTS_RG_20M_2021_4326.shp")
+#nuts_polyg <- nuts_polyg[nuts_polyg$LEVL_CODE=="2",]
+# We have NUTS1 data
+colnames(nuts_polyg)[1] <- "NUTS"
+
+lost <- anti_join(dataset, nuts_polyg, by="NUTS")
+
+nuts_polyg1 <- st_read("NUTS_RG_20M_2013_4326.shp")
+#nuts_polyg1 <- nuts_polyg1[nuts_polyg1$LEVL_CODE=="2",]
+colnames(nuts_polyg1)[1] <- "NUTS"
+
+nuts_polyg1 <- merge(nuts_polyg1, lost[, c(1,27)], by = 'NUTS')
+
+lost <- anti_join(lost, nuts_polyg1, by="NUTS")
+
+nuts_polyg <- rbind(nuts_polyg[,-c(6:8)], nuts_polyg1[,-c(7)])
+
+nuts_polyg1 <- st_read("NUTS_RG_20M_2006_4326.shp")
+#nuts_polyg1 <- nuts_polyg1[nuts_polyg1$LEVL_CODE=="2",]
+colnames(nuts_polyg1)[1] <- "NUTS"
+
+nuts_polyg1 <- merge(nuts_polyg1, lost[, c(1,27)], by = 'NUTS')
+
+nuts_polyg <- rbind(nuts_polyg, nuts_polyg1[,-c(7)])
+
+rm(lost)
+
+plot(nuts_polyg$geometry)
+
+
