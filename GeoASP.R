@@ -267,7 +267,6 @@ rm(df_list,df_list1,
    hosp, life, longterm, nama, partic, popd, popul, pupils, regGVA,
    stock, students, unempl, utilized, young)
 
-library(dplyr)
 country_data <- country_data %>%
   select(country, name, air, available, causes, compensation, deaths, early,
          employment, farm, health, discharges, life, longterm, nama,
@@ -312,6 +311,10 @@ barplot(height = missing$nans,
         horiz = TRUE)
 
 rm(countries, missing)
+
+#### Completion step 1: NUTS1 regions ----
+
+# Exclusively Germany and 2 regions of BE
 
 #### Assessment for data filling: Preparation ----
 
@@ -1449,14 +1452,14 @@ library(sf)
 
 setwd('/home/fpjaa/Documents/GitHub/geostats-covid/Polygons/')
 nuts_polyg <- st_read("NUTS_RG_20M_2021_4326.shp")
-#nuts_polyg <- nuts_polyg[nuts_polyg$LEVL_CODE=="2",]
-# We have NUTS1 data
+nuts_polyg <- nuts_polyg[nuts_polyg$LEVL_CODE!="3",]
+nuts_polyg <- nuts_polyg[nuts_polyg$LEVL_CODE!="0",]
+# We have NUTS1 data: DE + BE
 colnames(nuts_polyg)[1] <- "NUTS"
 
 lost <- anti_join(dataset, nuts_polyg, by="NUTS")
 
 nuts_polyg1 <- st_read("NUTS_RG_20M_2013_4326.shp")
-#nuts_polyg1 <- nuts_polyg1[nuts_polyg1$LEVL_CODE=="2",]
 colnames(nuts_polyg1)[1] <- "NUTS"
 
 nuts_polyg1 <- merge(nuts_polyg1, lost[, c(1,27)], by = 'NUTS')
@@ -1475,6 +1478,33 @@ nuts_polyg <- rbind(nuts_polyg, nuts_polyg1[,-c(7)])
 
 rm(lost)
 
-plot(nuts_polyg$geometry)
+#### Map plots ----
 
+par(mar=c(2,4,2,4)+0.1)  # BLTR
+plot(nuts_polyg$geometry, xlim=c(-20,30), ylim=c(25,60))
 
+# Note there are islands far away that are european dominated
+# In the dataset, when making a boxplot of latitude, we note some outliers
+# under -40 that could be discarded since they are said islands,
+# they are only 3 locations
+# Similarly, some negative longitudes can be discarded,
+# they are not the same locations, but an extra of 2 locations
+
+dataset <- dataset[dataset$latitude>-40,]
+dataset <- dataset[dataset$longitude>0,]
+
+my_colors <- c("white", heat.colors(5))
+mybreaks <- c(0, seq(from = min(dataset$cases_density_first_wave),
+                     to = max(dataset$cases_density_first_wave),
+                     length.out = 5))
+
+nuts_polyg_tagged <- merge(nuts_polyg[,c(1,7)], dataset[,c(1,25)], by="NUTS", all=TRUE)
+nuts_polyg_tagged$cases_density_first_wave[is.na(nuts_polyg_tagged$cases_density_first_wave)] <- 0
+tags <- cut(nuts_polyg_tagged$cases_density_first_wave, mybreaks)
+
+mycolourscheme <- my_colors[findInterval(nuts_polyg_tagged$cases_density_first_wave, vec = mybreaks)]
+
+# we can then generate our plot from the modified .shp file
+# the labels are generated from the centroids
+plot(nuts_polyg$geometry, col = mycolourscheme,
+     xlim=c(-20,30), ylim=c(25,60))
