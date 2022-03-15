@@ -128,8 +128,7 @@ means_by_country <- means_by_country[, -1] %>%
   group_by(country) %>%
   summarise_all("mean", na.rm = TRUE)
 
-rm(df_list,
-   air, avail, causes, compens, death, early, employ, farm, health,
+rm(df_list, air, avail, causes, compens, death, early, employ, farm, health,
    hosp, life, longterm, nama, partic, popd, popul, pupils, regGVA,
    stock, students, unempl, utilized, young)
 
@@ -302,6 +301,7 @@ missing <- missing %>%
   summarise_all("max", na.rm = TRUE)
 
 par(mfrow=c(1,1))
+par(mar=c(5,7,4,3)+0.1)
 barplot(height = missing$nans,
         names.arg = missing$country,
         main = "Missing features by country",
@@ -318,7 +318,7 @@ rm(countries, missing)
 
 my.max <- function(x) ifelse( !all(is.na(x)), max(x, na.rm=T), NA)
 my.min <- function(x) ifelse( !all(is.na(x)), min(x, na.rm=T), NA)
-err <- data.frame(matrix(ncol = 24, nrow = 4))
+err <- data.frame(matrix(ncol = 24, nrow = 3))
 colnames(err)[1] <- 'type'
 colnames(err)[2:24] <- colnames(country_data)[3:25]
 
@@ -403,105 +403,6 @@ err[2,2:24] <- apply(errors[,2:24], 2, my.max) - apply(errors[,2:24], 2, my.min)
 #par(mfrow=c(1,1))
 #barplot(missing$nans, main = "Missing features by country", xlab = "Country", ylab = "NAs", names.arg = missing$country, col = "darkred", horiz = FALSE)
 
-#### Fill NAs ----
-
-rm(errors, my.max, my.min)
-
-plot(t(log(err[1,2:24])), t(log(err[2,2:24])),
-     ylab="Wins national mean",
-     xlab="Wins population proportion")
-text(t(log(err[1,2:24])), t(log(err[2,2:24])),
-     labels = colnames(err)[2:24], pos = 3, cex=0.6, las=1)
-abline(coef = c(0,1), col="red")
-
-rm(err)
-
-# Fill data: Using means by country
-## Available hosp beds, causes of death, life expectancy, longterm beds, GVA
-data1 <- merge(data[,c(1,27)], means_by_country, by = 'country')
-for (i in c(3,4,12,13,19)){
-  data[,i] <- ifelse(is.na(data[,i]), data1[,i+1], data[,i])
-}
-# Fill data: Using weights by population
-data1 <- merge(data[,c(1,27)], country_data, by = 'country')
-for (r in 1:141){
-  for (c in c(2,5,6,7,8,9,10,11,14,15,16,18,20,21,22,23,24)){
-    if (is.na(data[r,c]) && !is.na(data1[r,c+1])){
-      replace <- data1[r,c+2]*data[r,17]/data1[r,19]
-      data[r,c] <- replace
-    }
-  }
-}
-
-rm(data1, means_by_country, c, r, i, replace)
-
-# Fix data fill that is supposed to be integer
-## Deaths (ok), population (ok), pupils (to do), students (to do),
-## farm labour force (to do) and utilised agricultural area (to do)
-data$deaths <- as.integer(data$deaths)
-data$population_nuts2 <- as.integer(data$population_nuts2)
-data$students_enrolled_in_tertiary_education_by_education_level_programme_orientation_sex_and_nuts2 <- as.integer(data$students_enrolled_in_tertiary_education_by_education_level_programme_orientation_sex_and_nuts2)
-data$pupils_and_students_enrolled_by_sex_age_and_nuts2 <- as.integer(data$pupils_and_students_enrolled_by_sex_age_and_nuts2)
-data$farm_labour_force <- as.integer(data$farm_labour_force)
-data$utilised_agricultural_area <- as.integer(data$utilised_agricultural_area)
-
-# Check NAs that werent filled
-
-missing <- is.na(data[, -c(1, 25, 26)])
-missing <- rowSums(missing)
-
-data$country = substr(data$NUTS,1,2)
-countries <- merge(data[,c(1,27)], country_data[,c(1,2)], by = 'country')
-countries$name <- replace(countries$name, countries$name=="Germany (until 1990 former territory of the FRG)", "Germany")
-
-countries <- countries$name
-missing <- data.frame(countries, missing)
-colnames(missing) <- c('country', 'nans')
-missing$nans <- as.integer(missing$nans)
-
-missing <- missing %>%
-  group_by(country) %>%
-  summarise_all("max", na.rm = TRUE)
-
-par(mfrow=c(1,1))
-barplot(height = missing$nans,
-        names.arg = missing$country,
-        main = "Missing features by country",
-        xlab = "Country",
-        ylab = "",
-        col = "darkblue",
-        las = 1,
-        cex.names = 1,
-        horiz = TRUE)
-
-rm(countries, missing, country_data)
-
-#### Summary ----
-
-data1$name <- replace(data1$name, data1$name=="Germany (until 1990 former territory of the FRG)", "Germany")
-regions_by_country <- table(data1$name)
-
-par(mfrow=c(1,1))
-par(mar=c(5,7,4,3)+0.1)  # BLTR
-barplot(regions_by_country,
-        main = "Regions considered by country",
-        xlab = "Amount of regions",
-        ylab = "",
-        col = "darkblue",
-        las = 1,
-        cex.names = 1,
-        horiz = TRUE)
-
-#install.packages('psych')
-library(psych) 
-#create summary table
-resumen <- describe(data[,-c(1,25, 26, 27)])
-resumen <- data.frame(t(resumen))
-resumen <- cbind(row.names(resumen), resumen)
-write_csv(resumen, 'summary.csv')
-
-rm(resumen)
-
 #### Add locations ####
 
 #install.packages('geojsonR')
@@ -511,16 +412,16 @@ spdf <- FROM_GeoJson("NUTS_LB_2021_4326.geojson")
 locations <- data.frame(matrix(ncol = 3, nrow = 0))
 colnames(locations) <- c('latitude', 'longitude', 'NUTS')
 for (i in 1:2010){
-     lat <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][1]
-     lon <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][2]
-     nuts <- spdf[["features"]][[i]][["properties"]][["NUTS_ID"]]
-     new <- c(lat, lon, nuts)                       # Create new row
-     locations[nrow(locations) + 1, ] <- new
+  lat <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][1]
+  lon <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][2]
+  nuts <- spdf[["features"]][[i]][["properties"]][["NUTS_ID"]]
+  new <- c(lat, lon, nuts)                       # Create new row
+  locations[nrow(locations) + 1, ] <- new
 }
 
 dataset <- merge(data, locations, by = 'NUTS')
 
-#lost <- anti_join(data, locations, by="NUTS")
+lost <- anti_join(data, locations, by="NUTS")
 # FI13 not found -> Candidates FI1C3 FI1D3
 ## Found in 2006
 # FI18 -> FI1D8
@@ -563,7 +464,7 @@ spdf <- FROM_GeoJson("NUTS_LB_2013_4326.geojson")
 
 locations <- data.frame(matrix(ncol = 3, nrow = 0))
 colnames(locations) <- c('latitude', 'longitude', 'NUTS')
-for (i in 1:2010){
+for (i in 1:1951){
   lat <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][1]
   lon <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][2]
   nuts <- spdf[["features"]][[i]][["properties"]][["NUTS_ID"]]
@@ -580,7 +481,7 @@ spdf <- FROM_GeoJson("NUTS_LB_2006_4326.geojson")
 
 locations <- data.frame(matrix(ncol = 3, nrow = 0))
 colnames(locations) <- c('latitude', 'longitude', 'NUTS')
-for (i in 1:2010){
+for (i in 1:1931){
   lat <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][1]
   lon <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][2]
   nuts <- spdf[["features"]][[i]][["properties"]][["NUTS_ID"]]
@@ -592,12 +493,251 @@ fill <- merge(lost, locations, by = 'NUTS')
 
 dataset <- rbind(dataset, fill)
 
-rm(fill, locations, lost, spdf, data, i, lat, lon, new, nuts)
+rm(fill, locations, lost, spdf, i, lat, lon, new, nuts)
+
+dataset$latitude <- as.numeric(dataset$latitude)
+dataset$longitude <- as.numeric(dataset$longitude)
+
+#write_csv(dataset, 'dataset.csv')
+
+#### Fill NAs: Trial by weighted mean by distance ----
+
+library(sp)
+#air_grid <- dataset[!is.na(dataset[,2]),c(2,28,29)]
+#air_newdata <- dataset[is.na(dataset[,2]),c(2,28,29)]
+#coordinates(air_grid) <- c('latitude','longitude')
+#coordinates(air_newdata) <- c('latitude','longitude')
+
+library(gstat)
+#air_fill <- idw0(air_passengers ~ latitude + longitude, data = air_grid, newdata = air_newdata, idp = 2.0)
+
+# Validation
+errors <- data.frame(matrix(ncol = 24, nrow = 141))
+errors[,1] <- data1[,2]
+colnames(errors) <- colnames(data1)[3:26]
+for (r in 1:141){
+  for (c in 2:24){
+    if (!is.na(dataset[r,c]) && dataset[r,c] != 0){
+      x_grid <- dataset[-c(r),c(c,28,29)]  # Discard the value to evaluate
+      x_grid <- x_grid[!is.na(x_grid[,1]),]  # Discard NAs
+      x_newdata <- dataset[r,c(c,28,29)]  # Value to validate
+      coordinates(x_grid) <- c('latitude','longitude')
+      coordinates(x_newdata) <- c('latitude','longitude')
+      replace <- idw0(as.formula(paste(colnames(dataset)[c],"~ latitude + longitude")), data = x_grid, newdata = x_newdata, idp = 2.0)
+      errors[r,c] <- (replace - dataset[r,c])/dataset[r,c]
+    }
+  }
+}  # Takes a while
+
+err[3,1] <- 'dist'
+err[3,2:24] <- apply(errors[,2:24], 2, my.max) - apply(errors[,2:24], 2, my.min)
+
+#dataset[is.na(dataset[,2]),2] <- air_fill
+
+#### Fill NAs ----
+
+rm(errors, my.max, my.min)
+
+plot(1:23, log(err[3,2:24]), ylab="Log error range", xlab="Feature", main="Approximation method comparison", type="p")
+points(1:23, log(err[2,2:24]), col="red")
+points(1:23, log(err[1,2:24]), col="blue")
+legend("bottomleft",legend = err[c(3,2,1),1],
+       col = c("black", "red", "blue"), pch = 1, cex = 0.8)
+
+# Winner by feature
+## Air = pop -> Problematic (over 1 as range)
+## Available = mean -> Problematic (bit over 1 as range)
+## Causes = mean
+## Compensation = pop -> Problematic (bit over 1 as range)
+## Deaths doesn't need filling
+## Early = pop
+## Employment = pop -> Problematic (bit over 1 as range)
+## Farm = pop -> Problematic (over 1 as range)
+## Health = pop -> Problematic (bit over 1 as range)
+## Discharges = pop
+## Life = dist
+## Longterm = dist -> Problematic (over 1 as range)
+## GDP = pop -> Problematic (bit over 1 as range)
+## Participation = pop
+## Density = pop
+## Population doesn't need filling
+## Pupils = pop
+## GVA = mean
+## Stock = pop -> Problematic (bit over 1 as range)
+## Students = pop -> Problematic (bit over 1 as range)
+## Unemployment = pop -> Problematic (bit over 1 as range)
+## Utilized = pop -> Problematic (over 1 as range)
+## NEETs = pop
+
+# Fill data: Using means by country
+## Available hosp beds, causes of death, GVA
+data1 <- merge(data[,c(1,27)], means_by_country, by = 'country')
+for (i in c(3,4,19)){
+  data[,i] <- ifelse(is.na(data[,i]), data1[,i+1], data[,i])
+}
+# Fill data: Using weights by population
+data1 <- merge(data[,c(1,27)], country_data, by = 'country')
+for (r in 1:141){
+  for (c in c(2,5,7,8,9,10,11,14,15,16,18,20,21,22,23,24)){
+    if (is.na(data[r,c]) && !is.na(data1[r,c+1])){
+      replace <- data1[r,c+2]*data[r,17]/data1[r,19]
+      data[r,c] <- replace
+    }
+  }
+}
+# Fill data: Using universal kriging
+for (c in 12:13){
+  x_grid <- dataset[!is.na(dataset[,c]),c(c,28,29)]  # Discard NAs
+  x_newdata <- dataset[is.na(dataset[,c]),c(c,28,29)]  # Values to replace
+  coordinates(x_grid) <- c('latitude','longitude')
+  coordinates(x_newdata) <- c('latitude','longitude')
+  replace <- idw0(as.formula(paste(colnames(dataset)[c],"~ latitude + longitude")), data = x_grid, newdata = x_newdata, idp = 2.0)
+  dataset[is.na(dataset[,c]),c] <- replace
+}
+data[,12:13] <- dataset[,12:13]
+
+rm(data1, means_by_country, c, r, i, replace, x_grid, x_newdata)
+
+# Fix data fill that is supposed to be integer
+## Deaths (ok), population (ok), pupils (to do), students (to do),
+## farm labour force (to do) and utilised agricultural area (to do)
+data$deaths <- as.integer(data$deaths)
+data$population_nuts2 <- as.integer(data$population_nuts2)
+data$students_enrolled_in_tertiary_education_by_education_level_programme_orientation_sex_and_nuts2 <- as.integer(data$students_enrolled_in_tertiary_education_by_education_level_programme_orientation_sex_and_nuts2)
+data$pupils_and_students_enrolled_by_sex_age_and_nuts2 <- as.integer(data$pupils_and_students_enrolled_by_sex_age_and_nuts2)
+data$farm_labour_force <- as.integer(data$farm_labour_force)
+data$utilised_agricultural_area <- as.integer(data$utilised_agricultural_area)
+
+# Check NAs that werent filled
+
+missing <- is.na(data[, -c(1, 25, 26)])
+missing <- rowSums(missing)
+
+data$country = substr(data$NUTS,1,2)
+countries <- merge(data[,c(1,27)], country_data[,c(1,2)], by = 'country')
+countries$name <- replace(countries$name, countries$name=="Germany (until 1990 former territory of the FRG)", "Germany")
+
+countries <- countries$name
+missing <- data.frame(countries, missing)
+colnames(missing) <- c('country', 'nans')
+missing$nans <- as.integer(missing$nans)
+
+missing <- missing %>%
+  group_by(country) %>%
+  summarise_all("max", na.rm = TRUE)
+
+par(mfrow=c(1,1))
+par(mar=c(5,7,4,3)+0.1)
+barplot(height = missing$nans,
+        names.arg = missing$country,
+        main = "Missing features by country",
+        xlab = "Country",
+        ylab = "",
+        col = "darkblue",
+        las = 1,
+        cex.names = 1,
+        horiz = TRUE)
+
+missing <- is.na(data[, -c(1, 25, 26)])
+missing <- colSums(missing)
+missing <- data.frame(missing)
+
+par(mfrow=c(1,1))
+par(mar=c(5,15,4,3)+0.1)
+barplot(height = missing$missing,
+        names.arg = row.names(missing),
+        main = "Missing features by country",
+        xlab = "Country",
+        ylab = "",
+        col = "darkblue",
+        las = 1,
+        cex.names = 0.6,
+        horiz = TRUE)
+
+rm(countries, missing, country_data, err)
+
+#### Add locations ####
+
+#install.packages('geojsonR')
+library(geojsonR)
+spdf <- FROM_GeoJson("NUTS_LB_2021_4326.geojson")
+
+locations <- data.frame(matrix(ncol = 3, nrow = 0))
+colnames(locations) <- c('latitude', 'longitude', 'NUTS')
+for (i in 1:2010){
+  lat <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][1]
+  lon <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][2]
+  nuts <- spdf[["features"]][[i]][["properties"]][["NUTS_ID"]]
+  new <- c(lat, lon, nuts)                       # Create new row
+  locations[nrow(locations) + 1, ] <- new
+}
+
+dataset <- merge(data, locations, by = 'NUTS')
+lost <- anti_join(data, locations, by="NUTS")
+
+spdf <- FROM_GeoJson("NUTS_LB_2013_4326.geojson")
+locations <- data.frame(matrix(ncol = 3, nrow = 0))
+colnames(locations) <- c('latitude', 'longitude', 'NUTS')
+for (i in 1:1951){
+  lat <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][1]
+  lon <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][2]
+  nuts <- spdf[["features"]][[i]][["properties"]][["NUTS_ID"]]
+  new <- c(lat, lon, nuts)                       # Create new row
+  locations[nrow(locations) + 1, ] <- new
+}
+
+fill <- merge(lost, locations, by = 'NUTS')
+dataset <- rbind(dataset, fill)
+
+lost <- anti_join(lost, fill, by="NUTS")
+spdf <- FROM_GeoJson("NUTS_LB_2006_4326.geojson")
+
+locations <- data.frame(matrix(ncol = 3, nrow = 0))
+colnames(locations) <- c('latitude', 'longitude', 'NUTS')
+for (i in 1:1931){
+  lat <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][1]
+  lon <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][2]
+  nuts <- spdf[["features"]][[i]][["properties"]][["NUTS_ID"]]
+  new <- c(lat, lon, nuts)                       # Create new row
+  locations[nrow(locations) + 1, ] <- new
+}
+
+fill <- merge(lost, locations, by = 'NUTS')
+
+dataset <- rbind(dataset, fill)
+
+rm(fill, locations, lost, spdf, i, lat, lon, new, nuts, data)
 
 dataset$latitude <- as.numeric(dataset$latitude)
 dataset$longitude <- as.numeric(dataset$longitude)
 
 write_csv(dataset, 'dataset.csv')
+
+#### Summary ----
+
+data1$name <- replace(data1$name, data1$name=="Germany (until 1990 former territory of the FRG)", "Germany")
+regions_by_country <- table(data1$name)
+
+par(mfrow=c(1,1))
+par(mar=c(5,7,4,3)+0.1)  # BLTR
+barplot(regions_by_country,
+        main = "Regions considered by country",
+        xlab = "Amount of regions",
+        ylab = "",
+        col = "darkblue",
+        las = 1,
+        cex.names = 1,
+        horiz = TRUE)
+
+#install.packages('psych')
+library(psych) 
+#create summary table
+resumen <- describe(data[,-c(1,25, 26, 27)])
+resumen <- data.frame(t(resumen))
+resumen <- cbind(row.names(resumen), resumen)
+write_csv(resumen, 'summary.csv')
+
+rm(resumen)
 
 #### Map plots ----
 
@@ -941,6 +1081,8 @@ x <- model.matrix(response1 ~ air_passengers +
 # Build the vector of response
 y <- dataset[row.names(x),]$response1
 
+par(mar=c(4,6,4,6)+0.1)  # BLTR
+
 boxplot(y)
 
 # Let's set a grid of candidate lambda's for the estimate
@@ -961,7 +1103,7 @@ plot(cv.lasso)
 
 coeffs.table <- coeff2dt(fitobject = cv.lasso, s = 'lambda.min')
 barplot(coeffs.table$coefficient[1:14], col = rainbow(dim(x)[2]))
-legend('bottomleft', coeffs.table$name[1:14], col =  rainbow(dim(x)[2]), lty=1, cex=0.5)
+legend('topright', coeffs.table$name[1:14], col =  rainbow(dim(x)[2]), lty=1, cex=0.5)
 
 rm(x, y, fit.lasso, cv.lasso, bestlam.lasso, lambda.grid)
 
@@ -973,7 +1115,7 @@ rm(x, y, fit.lasso, cv.lasso, bestlam.lasso, lambda.grid)
 # Assumption: Eps ~ N(0, sigma^2)
 
 # Logit transform
-fm1 <- lm(response1 ~ air_passengers +
+fm1 <- lm(response1 ~ #air_passengers +
                  available_hospital_beds_nuts2 +
                  causes_of_death_crude_death_rate_3year_average_by_nuts2 +
                  early_leavers_from_education_and_training_by_sex_percentage_nuts2 +
@@ -982,11 +1124,13 @@ fm1 <- lm(response1 ~ air_passengers +
                  life_expectancy +
                  longterm_care_beds_per_hundred_thousand_nuts2 +
                  pop_density +
+                 population_nuts2 +
                  pupils_and_students_enrolled_by_sex_age_and_nuts2 +
                  real_growth_rate_of_regional_gross_value_added_GVA_at_basic_prices_by_nuts2 +
-                 stock_of_vehicles_by_category_and_nuts2 +
+                 #stock_of_vehicles_by_category_and_nuts2 +
                  unemployment_rate_nuts2 +
-              young_people_neither_in_employment_nor_in_education_and_training_by_sex_NEET_RATE_nuts2, data=dataset)
+                 utilised_agricultural_area +
+                 young_people_neither_in_employment_nor_in_education_and_training_by_sex_NEET_RATE_nuts2, data=dataset)
 
 # Z transform
 '''
@@ -1007,6 +1151,7 @@ fm1 <- lm(response1 ~ available_hospital_beds_nuts2 +
 '''
 
 par(mfrow=c(2,2))
+par(mar=c(4,6,4,2)+0.5)  # BLTR
 plot(fm1)
 
 shapiro.test(residuals(fm1))
@@ -1053,7 +1198,7 @@ plot(variogram(residuals.fm1. ~ latitude+longitude, data=resid_w1,
 # lag width: width of distance intervals over which point pairs are averaged
 #            in bins (default = cutoff distance / 15)
 
-coff <- 20
+coff <- 40
 
 plot(variogram(residuals.fm1. ~ 1, data=resid_w1,
                cutoff = coff, width = coff/15), pch=19, main = 'Sample Variogram (cutoff=20)')
@@ -1144,8 +1289,8 @@ bestlam.lasso
 plot(cv.lasso)
 
 coeffs.table <- coeff2dt(fitobject = cv.lasso, s = 'lambda.min')
-barplot(coeffs.table$coefficient[1:11], col = rainbow(dim(x)[2]))
-legend('bottomleft', coeffs.table$name[1:11], col =  rainbow(dim(x)[2]), lty=1, cex=0.6)
+barplot(coeffs.table$coefficient[2:13], col = rainbow(dim(x)[2]))
+legend('bottomleft', coeffs.table$name[2:13], col =  rainbow(dim(x)[2]), lty=1, cex=0.6)
 
 rm(x, y, fit.lasso, cv.lasso, bestlam.lasso, lambda.grid)
 
@@ -1160,18 +1305,20 @@ rm(x, y, fit.lasso, cv.lasso, bestlam.lasso, lambda.grid)
 # Cubic and square root transform: Too low
 
 # Z transform: Good
-fm2 <- lm(response2 ~ available_hospital_beds_nuts2 +
+fm2 <- lm(response2 ~ #available_hospital_beds_nuts2 +
             causes_of_death_crude_death_rate_3year_average_by_nuts2 +
             compensation_of_employees_by_nuts2 +
             early_leavers_from_education_and_training_by_sex_percentage_nuts2 +
-            #health_personnel_by_nuts2 +
+            farm_labour_force +
+            health_personnel_by_nuts2 +
             life_expectancy +
             longterm_care_beds_per_hundred_thousand_nuts2 +
             participation_in_education_and_training +
             pop_density +
             real_growth_rate_of_regional_gross_value_added_GVA_at_basic_prices_by_nuts2 +
-            students_enrolled_in_tertiary_education_by_education_level_programme_orientation_sex_and_nuts2 +
+            #students_enrolled_in_tertiary_education_by_education_level_programme_orientation_sex_and_nuts2 +
             unemployment_rate_nuts2 +
+            utilised_agricultural_area +
             young_people_neither_in_employment_nor_in_education_and_training_by_sex_NEET_RATE_nuts2, data=dataset)
 
 par(mfrow=c(2,2))
@@ -1221,15 +1368,15 @@ plot(variogram(residuals.fm2. ~ latitude+longitude, data=resid_w2,
 # lag width: width of distance intervals over which point pairs are averaged
 #            in bins (default = cutoff distance / 15)
 
-coff <- 20
+coff <- 30
 
 plot(variogram(residuals.fm2. ~ 1, data=resid_w2,
-               cutoff = coff, width = coff/15), pch=19, main = 'Sample Variogram (cutoff=20)')
+               cutoff = coff, width = coff/15), pch=19, main = paste('Sample Variogram, cutoff =',coff))
 
 plot(variogram(residuals.fm2. ~ latitude+longitude, data=resid_w2,
-               cutoff = coff, width = coff/15), pch=19, main = 'Residual Variogram (cutoff=20)')
+               cutoff = coff, width = coff/15), pch=19, main = paste('Residual Variogram, cutoff =',coff))
 
-rm(fm2, coeffs.table, samp_vgm, res_vgm)
+rm(fm2, coeffs.table, samp_vgm, res_vgm, coeff2dt)
 
 #### Variogram modeling ----
 
