@@ -2,20 +2,26 @@
 ### Thesis: ASP data + Geostatistics ###
 ###----------------------------------###
 
-## Load packages
-
-library(readr)  # Read tsv for national means
-library(dplyr)  # Data management all over the code
-
-
-#### Setup ####
+## Setup: Dataset building ####
 
 ## Clear the workspace
 rm(list=ls())
 
-## Functions for graphics 
-#v.f <- function(x, ...){100-cov.spatial(x, ...)}
-#v.f.est<-function(x,C0, ...){C0-cov.spatial(x, ...)}
+## Load packages
+
+library(readr)  # Read tsv for national means
+library(dplyr)  # Data management
+library(geojsonR)  # Load geojson points
+
+#### Load data to complete ----
+
+setwd('/home/fpjaa/Documents/GitHub/geostats-covid/')
+
+data <- read.csv("ASPdataset.csv", header=TRUE, stringsAsFactors=FALSE)
+data <- data[, -c(25, 26, 27, 28)]
+data <- data[!is.na(data$cases_density_first_wave),]
+
+data$country = substr(data$NUTS,1,2)
 
 #### Load data by variable: National means ####
 
@@ -258,8 +264,8 @@ df_list <- list(air, death, life, popd, popul, stock)
 country_data <- Reduce(function(x, y) merge(x, y, all=TRUE, by=c('country', 'name')), df_list)
 
 df_list1 <- list(country_data, avail, causes, compens, early, employ, farm, health,
-                hosp, longterm, nama, partic, pupils, regGVA,
-                students, unempl, utilized, young)
+                 hosp, longterm, nama, partic, pupils, regGVA,
+                 students, unempl, utilized, young)
 country_data <- Reduce(function(x, y) merge(x, y, all=TRUE, by='name'), df_list1)
 
 rm(df_list,df_list1,
@@ -271,50 +277,7 @@ country_data <- country_data %>%
   select(country, name, air, available, causes, compensation, deaths, early,
          employment, farm, health, discharges, life, longterm, nama,
          participation, density, population, pupils, rgva, stock, students,
-         unemployment, utilized, neet) %>%
-  mutate_all(~replace(., . == ":", NA))
-
-#### Load data to complete ----
-
-setwd('/home/fpjaa/Documents/GitHub/geostats-covid/')
-
-data <- read.csv("ASPdataset.csv", header=TRUE, stringsAsFactors=FALSE)
-data <- data[, -c(25, 26, 27, 28)]
-data <- data[!is.na(data$cases_density_first_wave),]
-
-missing <- is.na(data)
-missing <- rowSums(missing)
-
-data$country = substr(data$NUTS,1,2)
-countries <- merge(data[,c(1,27)], country_data[,c(1,2)], by = 'country')
-countries$name <- replace(countries$name, countries$name=="Germany (until 1990 former territory of the FRG)", "Germany")
-
-countries <- countries$name
-missing <- data.frame(countries, missing)
-colnames(missing) <- c('country', 'nans')
-missing$nans <- as.integer(missing$nans)
-
-missing <- missing %>%
-  group_by(country) %>%
-  summarise_all("max", na.rm = TRUE)
-
-par(mfrow=c(1,1))
-par(mar=c(5,7,4,3)+0.1)
-barplot(height = missing$nans,
-        names.arg = missing$country,
-        main = "Missing features by country",
-        xlab = "Country",
-        ylab = "",
-        col = "darkblue",
-        las = 1,
-        cex.names = 1,
-        horiz = TRUE)
-
-rm(countries, missing)
-
-#### Completion step 1: NUTS1 regions ----
-
-# Exclusively Germany and 2 regions of BE
+         unemployment, utilized, neet)
 
 #### Assessment for data filling: Preparation ----
 
@@ -325,8 +288,6 @@ colnames(err)[1] <- 'type'
 colnames(err)[2:24] <- colnames(country_data)[3:25]
 
 #### Fill NAs: Trial by national mean ----
-
-data$country = substr(data$NUTS,1,2)
 
 data1 <- merge(data[,c(1,27)], means_by_country, by = 'country')
 
@@ -345,30 +306,9 @@ for (r in 1:141){
 err[1,1] <- 'mean'
 err[1,2:24] <- apply(errors[,2:24], 2, my.max) - apply(errors[,2:24], 2, my.min)
 
-# Fill data
-#for (i in 2:24){ data[,i] <- ifelse(is.na(data[,i]), data1[,i+1], data[,i]) }
-
-# Check NAs that werent filled
-
-#means_by_country <- data[, -c(1, 25, 26)] %>%
-#  group_by(country) %>%
-#  summarise_all("mean", na.rm = TRUE)
-
-#missing <- is.na(means_by_country)
-#missing <- rowSums(missing)
-#missing <- data.frame(cbind(means_by_country$country, missing))
-#colnames(missing) <- c('country', 'nans')
-#missing$nans <- as.numeric(missing$nans)
-
-#par(mfrow=c(1,1))
-#barplot(missing$nans, main = "Missing features by country", xlab = "Country", ylab = "NAs", names.arg = missing$country, col = "darkred", horiz = FALSE)
-
-# [DE] Germany (until 1990 former territory of the FRG)
 # CY or PT for longterm beds doesn't exist
 
 #### Fill NAs: Trial by population proportion ----
-
-data$country = substr(data$NUTS,1,2)
 
 data1 <- merge(data[,c(1,27)], country_data, by = 'country')
 
@@ -407,8 +347,7 @@ err[2,2:24] <- apply(errors[,2:24], 2, my.max) - apply(errors[,2:24], 2, my.min)
 
 #### Add locations ####
 
-#install.packages('geojsonR')
-library(geojsonR)
+setwd('/home/fpjaa/Documents/GitHub/geostats-covid/')
 spdf <- FROM_GeoJson("NUTS_LB_2021_4326.geojson")
 
 locations <- data.frame(matrix(ncol = 3, nrow = 0))
@@ -500,8 +439,6 @@ rm(fill, locations, lost, spdf, i, lat, lon, new, nuts)
 dataset$latitude <- as.numeric(dataset$latitude)
 dataset$longitude <- as.numeric(dataset$longitude)
 
-#write_csv(dataset, 'dataset.csv')
-
 #### Fill NAs: Trial by weighted mean by distance ----
 
 library(sp)
@@ -548,7 +485,7 @@ legend("bottomleft",legend = err[c(3,2,1),1],
 
 # Winner by feature
 ## Air = pop -> Problematic (over 1 as range)
-## Available = mean -> Problematic (bit over 1 as range)
+## Available = dist -> Problematic (bit over 1 as range)
 ## Causes = mean
 ## Compensation = pop -> Problematic (bit over 1 as range)
 ## Deaths doesn't need filling
@@ -572,9 +509,9 @@ legend("bottomleft",legend = err[c(3,2,1),1],
 ## NEETs = pop
 
 # Fill data: Using means by country
-## Available hosp beds, causes of death, GVA
+## Causes of death, GVA
 data1 <- merge(data[,c(1,27)], means_by_country, by = 'country')
-for (i in c(3,4,19)){
+for (i in c(4,19)){
   data[,i] <- ifelse(is.na(data[,i]), data1[,i+1], data[,i])
 }
 # Fill data: Using weights by population
@@ -588,7 +525,7 @@ for (r in 1:141){
   }
 }
 # Fill data: Using universal kriging
-for (c in 12:13){
+for (c in c(3,12:13)){
   x_grid <- dataset[!is.na(dataset[,c]),c(c,28,29)]  # Discard NAs
   x_newdata <- dataset[is.na(dataset[,c]),c(c,28,29)]  # Values to replace
   coordinates(x_grid) <- c('latitude','longitude')
@@ -596,7 +533,7 @@ for (c in 12:13){
   replace <- idw0(as.formula(paste(colnames(dataset)[c],"~ latitude + longitude")), data = x_grid, newdata = x_newdata, idp = 2.0)
   dataset[is.na(dataset[,c]),c] <- replace
 }
-data[,12:13] <- dataset[,12:13]
+data[,c(3,12:13)] <- dataset[,c(3,12:13)]
 
 rm(data1, means_by_country, c, r, i, replace, x_grid, x_newdata)
 
@@ -640,15 +577,24 @@ barplot(height = missing$nans,
         cex.names = 1,
         horiz = TRUE)
 
-missing <- is.na(data[, -c(1, 25, 26)])
+missing <- is.na(data[, -c(1, 25, 26,27)])
 missing <- colSums(missing)
 missing <- data.frame(missing)
 
 par(mfrow=c(1,1))
-par(mar=c(5,15,4,3)+0.1)
+par(mar=c(5,10,4,3)+0.1)
 barplot(height = missing$missing,
-        names.arg = row.names(missing),
-        main = "Missing features by country",
+        names.arg = c("Air passengers", "Hospital beds", "Death rate",
+                      "Compensation of employees", "Deaths (total)",
+                      "Early leavers from ed.", "Employment worked hrs.",
+                      "Farm labour force", "Health personnel",
+                      "Respiratory discharges", "Life expectancy",
+                      "Longterm care beds", "Gross domestic product",
+                      "Ed. participation", "Population density", "Population",
+                      "Pupils enrolled", "GVA growth", "Vehicles",
+                      "Tertiary ed. students", "Unemployment rate",
+                      "Utilised agricultural area", "NEET rate"),
+        main = "Missing data by feature",
         xlab = "Country",
         ylab = "",
         col = "darkblue",
@@ -656,9 +602,13 @@ barplot(height = missing$missing,
         cex.names = 0.6,
         horiz = TRUE)
 
+# Worst but unsolvable case: Discharges by resp diseases
+## No national data in DE, error with other methods too high
+## In general same scenario for all features
+
 rm(countries, missing, country_data, err)
 
-#### Add locations ####
+#### Add locations: Save dataset ####
 
 #install.packages('geojsonR')
 library(geojsonR)
@@ -713,267 +663,139 @@ rm(fill, locations, lost, spdf, i, lat, lon, new, nuts, data)
 dataset$latitude <- as.numeric(dataset$latitude)
 dataset$longitude <- as.numeric(dataset$longitude)
 
+# Note there are islands far away that are european dominated
+# In the dataset, when making a boxplot of latitude, we note some outliers
+# under -40 that could be discarded since they are said islands,
+# they are only 3 locations
+# Similarly, some negative longitudes can be discarded,
+# they are not the same locations, but an extra of 2 locations
+## This will require to exclude 5 regions
+dataset <- dataset[dataset$latitude>-40,]
+# "FRY1" "FRY2" "FRY3"
+dataset <- dataset[dataset$longitude>0,]
+# "FRY4" "FRY5"
+
+colnames(dataset) <- c("NUTS", "Air_passengers", "Hospital_beds", "Death_rate",
+                       "Compensation_of_employees", "Deaths",
+                       "Early_leavers_from_ed.", "Employment_worked_hrs.",
+                       "Farm_labour_force", "Health_personnel",
+                       "Respiratory_discharges", "Life_expectancy",
+                       "Longterm_care_beds", "Gross_domestic_product",
+                       "Ed._participation", "Population_density", "Population",
+                       "Pupils_enrolled", "GVA_growth", "Vehicles",
+                       "Tertiary_ed._students", "Unemployment_rate",
+                       "Utilised_agricultural_area", "NEET_rate",
+                       "Cases_density_1", "Cases_density_2", "Country",
+                       "Latitude", "Longitude")
+
 write_csv(dataset, 'dataset.csv')
 
-#### Summary ----
+## Setup: Data analysis ----
 
-data1$name <- replace(data1$name, data1$name=="Germany (until 1990 former territory of the FRG)", "Germany")
-regions_by_country <- table(data1$name)
+## Clear the workspace
+rm(list=ls())
 
-par(mfrow=c(1,1))
-par(mar=c(5,7,4,3)+0.1)  # BLTR
-barplot(regions_by_country,
-        main = "Regions considered by country",
-        xlab = "Amount of regions",
-        ylab = "",
-        col = "darkblue",
-        las = 1,
-        cex.names = 1,
-        horiz = TRUE)
+## Functions for graphics 
+#v.f <- function(x, ...){100-cov.spatial(x, ...)}
+#v.f.est<-function(x,C0, ...){C0-cov.spatial(x, ...)}
 
-#install.packages('psych')
-library(psych) 
-#create summary table
-resumen <- describe(data[,-c(1,25, 26, 27)])
-resumen <- data.frame(t(resumen))
-resumen <- cbind(row.names(resumen), resumen)
-write_csv(resumen, 'summary.csv')
+## Load packages
 
-rm(resumen)
+library(sf)  # SHP data management
+library(dplyr)  # Data management
+library(glmnet)  # LASSO selection
+library(gstat)  # Geostatistics (variogram)
+library(sp)  # Data management
+library(rgeoda)  # LISA clustering
+
+## Load data
+
+setwd('/home/fpjaa/Documents/GitHub/geostats-covid/')
+dataset <- read.csv("dataset.csv", header=TRUE, stringsAsFactors=FALSE)
+
+#### Load map ----
+
+setwd('/home/fpjaa/Documents/GitHub/geostats-covid/Polygons/')
+nuts_polyg <- st_read("NUTS_RG_20M_2021_4326.shp")
+# We have NUTS1 data: DE + BE (exclude all DE NUTS2 and BE1)
+# Approach: Keep only NUTS2 and then replace the NUTS1 considered
+exclude1 <- nuts_polyg[nuts_polyg$LEVL_CODE=="2" & nuts_polyg$CNTR_CODE=="DE",]
+exclude1 <- exclude1$NUTS_ID
+exclude2 <- nuts_polyg[nuts_polyg$LEVL_CODE=="2" & nuts_polyg$CNTR_CODE=="BE",]
+exclude2 <- exclude2[exclude2$NUTS_ID != "BE10",]  # Do not exclude BE10
+exclude2 <- exclude2$NUTS_ID
+include <- nuts_polyg[nuts_polyg$LEVL_CODE=="1" & nuts_polyg$CNTR_CODE %in% c("DE", "BE"),]
+include <- include[include$NUTS_ID != "BE1",]  # Exclude BE1
+nuts_polyg <- nuts_polyg[nuts_polyg$LEVL_CODE=="2",]
+nuts_polyg <- nuts_polyg[!(nuts_polyg$NUTS_ID %in% c(exclude1, exclude2)),]
+nuts_polyg <- rbind(nuts_polyg, include)
+colnames(nuts_polyg)[1] <- "NUTS"
+
+rm(exclude1, exclude2, include)
+
+lost <- anti_join(dataset, nuts_polyg, by="NUTS")
+
+nuts_polyg1 <- st_read("NUTS_RG_20M_2013_4326.shp")
+colnames(nuts_polyg1)[1] <- "NUTS"
+
+nuts_polyg1 <- merge(nuts_polyg1, lost[, c(1,27)], by = 'NUTS')
+
+lost <- anti_join(lost, nuts_polyg1, by="NUTS")
+
+nuts_polyg <- rbind(nuts_polyg[,-c(6:8)], nuts_polyg1[,-c(7)])
+
+nuts_polyg1 <- st_read("NUTS_RG_20M_2006_4326.shp")
+colnames(nuts_polyg1)[1] <- "NUTS"
+
+nuts_polyg1 <- merge(nuts_polyg1, lost[, c(1,27)], by = 'NUTS')
+
+nuts_polyg <- rbind(nuts_polyg, nuts_polyg1[,-c(7)])
+
+lost <- anti_join(lost, nuts_polyg1, by="NUTS")
+
+rm(lost, nuts_polyg1)
 
 #### Map plots ----
 
-library(plotly)
-library(ggplot2)
+# Uncoloured map
+par(mar=c(2,4,2,4)+0.1)  # BLTR
+plot(nuts_polyg$geometry, xlim=c(-20,30), ylim=c(25,60))
 
-g <- list(
-  scope = 'europe',
-  resolution = 50,
-  showland = TRUE,
-  landcolor = toRGB("gray85"),
-  showframe = TRUE,
-  showcountries = T,
-  countrycolor = toRGB("gray50")
-)
+# Waves 1 and 2 initial configuration
+my_colors <- c("white", heat.colors(5, alpha = 1))[c(1,6,5,4,3,2)]
+mybreaks <- c(0, 0.0000001, seq(from = min(dataset$Cases_density_1),
+                                to = max(dataset$Cases_density_1),
+                                length.out = 6))[c(1,3:8)]
 
-#fig <- plot_ly(type = 'scattergeo', mode = 'markers')
-#fig <- fig %>% layout(geo = g)
-#fig
+nuts_polyg_tagged <- merge(nuts_polyg[,c(1,7)], dataset[,c(1,25,26)], by="NUTS", all=TRUE)
+nuts_polyg_tagged$Cases_density_1[is.na(nuts_polyg_tagged$Cases_density_1)] <- 0
+tags <- cut(nuts_polyg_tagged$Cases_density_1, mybreaks)
 
-fig <- plot_geo(dataset, sizes = c(1, 126))
-fig <- fig %>% add_markers(
-  x = ~latitude, y = ~longitude, size=~population_nuts2, color = ~cases_density_first_wave, hoverinfo = "text",
-  text = ~paste(dataset$NUTS)
-)
-fig <- fig %>% layout(title = 'Europe regions',
-                      geo = g) %>% colorbar(title = "Cases density<br />First wave")
-fig
+mycolourscheme <- my_colors[findInterval(nuts_polyg_tagged$Cases_density_1, vec = mybreaks)]
 
-fig <- plot_geo(dataset, sizes = c(1, 126))
-fig <- fig %>% add_markers(
-  x = ~latitude, y = ~longitude, size=~population_nuts2, color = ~cases_density_second_wave, hoverinfo = "text",
-  text = ~paste(dataset$NUTS)
-)
-fig <- fig %>% layout(title = 'Europe regions',
-                      geo = g) %>% colorbar(title = "Cases density<br />Second wave")
-fig
+# Wave 1 plot
+plot(nuts_polyg_tagged$geometry, col = mycolourscheme,
+     xlim=c(-18,20), ylim=c(25,63))
+legend("topleft", legend = levels(tags), col = my_colors, pch=1, cex=0.9,
+       title="Cases density (wave 1)")
 
-#### DHARMa test -----
+# Wave 2 settings counting on work from wave 1
+mybreaks <- c(0, 0.0000001, seq(from = min(dataset$Cases_density_2),
+                                to = max(dataset$Cases_density_2),
+                                length.out = 6))[c(1:2,4:8)]
 
-dataset <- merge(data, locations, by = 'NUTS')
+nuts_polyg_tagged$Cases_density_2[is.na(nuts_polyg_tagged$Cases_density_2)] <- 0
+tags <- cut(nuts_polyg_tagged$Cases_density_2, mybreaks)
 
-nonsp_mod <- lm(dataset$cases_density_first_wave ~ ., dataset[,2:25], na.action=na.exclude)
+mycolourscheme <- my_colors[findInterval(nuts_polyg_tagged$Cases_density_2, vec = mybreaks)]
 
-#dataset$resid <- resid(nonsp_mod)
-#dataset <- dataset %>% drop_na('resid')
-#coordinates(dataset) <- c('latitude','longitude')
-#bubble(dataset,'resid',do.log=TRUE, key.space='bottom')
-## Same down below
+# Wave 2 plot
+plot(nuts_polyg_tagged$geometry, col = mycolourscheme,
+     xlim=c(-18,20), ylim=c(25,63))
+legend("topleft", legend = levels(tags), col = my_colors, pch=1, cex=0.9,
+       title="Cases density (wave 2)")
 
-#install.packages('DHARMa')
-library(DHARMa)
-nonsp_mod <- lm(dataset$cases_density_first_wave ~ ., dataset[,2:25])
-sims <- simulateResiduals(nonsp_mod)
-
-nonsp_mod <- lm(dataset$cases_density_first_wave ~ ., dataset[,2:25], na.action=na.exclude)
-dataset$resid <- resid(nonsp_mod)
-dataset <- dataset[!is.na(dataset$resid),]
-testSpatialAutocorrelation(sims, x = dataset$latitude,
-                           y = dataset$longitude, plot = TRUE)
-
-# Logarithmic scale
-
-dataset <- merge(data, locations, by = 'NUTS')
-
-nonsp_mod_log <- lm(log(dataset$cases_density_first_wave) ~ ., dataset[,2:25], na.action=na.exclude)
-
-nonsp_mod_log <- lm(log(dataset$cases_density_first_wave) ~ ., dataset[,2:25])
-sims_log <- simulateResiduals(nonsp_mod_log)
-
-nonsp_mod_log <- lm(log(dataset$cases_density_first_wave) ~ ., dataset[,2:25], na.action=na.exclude)
-dataset$resid_log <- resid(nonsp_mod_log)
-dataset <- dataset[!is.na(dataset$resid_log),]
-testSpatialAutocorrelation(sims_log, x = dataset$latitude,
-                           y = dataset$longitude, plot = TRUE)
-
-# Second wave
-
-dataset <- merge(data, locations, by = 'NUTS')
-
-nonsp_mod2 <- lm(dataset$cases_density_second_wave ~ ., dataset[,2:25])
-sims2 <- simulateResiduals(nonsp_mod2)
-
-nonsp_mod2 <- lm(dataset$cases_density_second_wave ~ ., dataset[,2:25], na.action=na.exclude)
-dataset$resid2 <- resid(nonsp_mod2)
-dataset <- dataset[!is.na(dataset$resid2),]
-testSpatialAutocorrelation(sims2, x = dataset$latitude,
-                           y = dataset$longitude, plot = TRUE)
-
-#### spmMM model -------
-
-dataset <- merge(data, locations, by = 'NUTS')
-dataset$latitude <- as.numeric(dataset$latitude)
-dataset$longitude <- as.numeric(dataset$longitude)
-
-#install.packages('spaMM')
-library(spaMM)
-#install.packages('Rcpp')
-library(Rcpp)
-# fit the model
-m_spamm <- fitme(log(cases_density_first_wave) ~ air_passengers +
-                         available_hospital_beds_nuts2 +
-                         causes_of_death_crude_death_rate_3year_average_by_nuts2 +
-                         compensation_of_employees_by_nuts2 +
-                         deaths + early_leavers_from_education_and_training_by_sex_percentage_nuts2 +
-                         employment_thousand_hours_worked_nuts2 + farm_labour_force +
-                         health_personnel_by_nuts2 +
-                         hospital_discharges_resp_diseases_j00_to_j99_nuts2 +
-                         life_expectancy +
-                         longterm_care_beds_per_hundred_thousand_nuts2 + nama_10r_2gdp +
-                         participation_in_education_and_training + pop_density +
-                         population_nuts2 +
-                         pupils_and_students_enrolled_by_sex_age_and_nuts2 +
-                         real_growth_rate_of_regional_gross_value_added_GVA_at_basic_prices_by_nuts2 +
-                         stock_of_vehicles_by_category_and_nuts2 +
-                         students_enrolled_in_tertiary_education_by_education_level_programme_orientation_sex_and_nuts2 +
-                         unemployment_rate_nuts2 + utilised_agricultural_area +
-                         young_people_neither_in_employment_nor_in_education_and_training_by_sex_NEET_RATE_nuts2 +
-                         Matern(1 | latitude + longitude), data = dataset, family = "gaussian")
-# this takes a bit of time
-# model summary
-summary(m_spamm)
-
-dd <- dist(dataset[,c("latitude", "longitude")])
-# Get nu and rho from output of model summary
-mm <- MaternCorr(dd, nu = 0.0522041050, rho = 0.0000787316)
-plot(as.numeric(dd), as.numeric(mm), xlab = "Distance between pairs of location [in m]", ylab = "Estimated correlation")
-
-library(DHARMa)
-sims <- simulateResiduals(m_spamm)
-plot(sims)
-
-# Second wave
-
-m_spamm <- fitme(cases_density_second_wave ~ air_passengers +
-                         available_hospital_beds_nuts2 +
-                         causes_of_death_crude_death_rate_3year_average_by_nuts2 +
-                         compensation_of_employees_by_nuts2 +
-                         deaths + early_leavers_from_education_and_training_by_sex_percentage_nuts2 +
-                         employment_thousand_hours_worked_nuts2 + farm_labour_force +
-                         health_personnel_by_nuts2 +
-                         hospital_discharges_resp_diseases_j00_to_j99_nuts2 +
-                         life_expectancy +
-                         longterm_care_beds_per_hundred_thousand_nuts2 + nama_10r_2gdp +
-                         participation_in_education_and_training + pop_density +
-                         population_nuts2 +
-                         pupils_and_students_enrolled_by_sex_age_and_nuts2 +
-                         real_growth_rate_of_regional_gross_value_added_GVA_at_basic_prices_by_nuts2 +
-                         stock_of_vehicles_by_category_and_nuts2 +
-                         students_enrolled_in_tertiary_education_by_education_level_programme_orientation_sex_and_nuts2 +
-                         unemployment_rate_nuts2 + utilised_agricultural_area +
-                         young_people_neither_in_employment_nor_in_education_and_training_by_sex_NEET_RATE_nuts2 +
-                         Matern(1 | latitude + longitude), data = dataset, family = "gaussian")
-# this takes a bit of time
-# model summary
-summary(m_spamm)
-
-dd <- dist(dataset[,c("latitude", "longitude")])
-# Get nu and rho from output of model summary
-mm <- MaternCorr(dd, nu = 2.679804e-02, rho = 7.873381e-05)
-plot(as.numeric(dd), as.numeric(mm), xlab = "Distance between pairs of location [in m]", ylab = "Estimated correlation")
-
-library(DHARMa)
-sims <- simulateResiduals(m_spamm)
-plot(sims)
-
-#### Other tests -----
-
-#install.packages("glmmTMB")
-library(glmmTMB)
-
-dataset <- merge(data, locations, by = 'NUTS')
-dataset$latitude <- as.numeric(dataset$latitude)
-dataset$longitude <- as.numeric(dataset$longitude)
-
-# first we need to create a numeric factor recording the coordinates of the sampled locations
-dataset$pos <- numFactor(scale(dataset$latitude), scale(dataset$longitude))
-# then create a dummy group factor to be used as a random term
-dataset$ID <- factor(rep(1, nrow(dataset)))
-
-# fit the model
-m_tmb <- glmmTMB(log(cases_density_first_wave) ~ air_passengers +
-                         available_hospital_beds_nuts2 +
-                         causes_of_death_crude_death_rate_3year_average_by_nuts2 +
-                         compensation_of_employees_by_nuts2 +
-                         deaths + early_leavers_from_education_and_training_by_sex_percentage_nuts2 +
-                         employment_thousand_hours_worked_nuts2 + farm_labour_force +
-                         health_personnel_by_nuts2 +
-                         hospital_discharges_resp_diseases_j00_to_j99_nuts2 +
-                         life_expectancy +
-                         longterm_care_beds_per_hundred_thousand_nuts2 + nama_10r_2gdp +
-                         participation_in_education_and_training + pop_density +
-                         population_nuts2 +
-                         pupils_and_students_enrolled_by_sex_age_and_nuts2 +
-                         real_growth_rate_of_regional_gross_value_added_GVA_at_basic_prices_by_nuts2 +
-                         stock_of_vehicles_by_category_and_nuts2 +
-                         students_enrolled_in_tertiary_education_by_education_level_programme_orientation_sex_and_nuts2 +
-                         unemployment_rate_nuts2 + utilised_agricultural_area +
-                         young_people_neither_in_employment_nor_in_education_and_training_by_sex_NEET_RATE_nuts2 +
-                         mat(pos + 0 | ID), dataset) # take some time to fit
-# model summary of fixed effects
-summary(m_tmb)
-
-library(DHARMa)
-sims <- simulateResiduals(m_tmb)
-plot(sims)
-
-# Second wave
-
-m_tmb <- glmmTMB(log(cases_density_second_wave) ~ air_passengers +
-                         available_hospital_beds_nuts2 +
-                         causes_of_death_crude_death_rate_3year_average_by_nuts2 +
-                         compensation_of_employees_by_nuts2 +
-                         deaths + early_leavers_from_education_and_training_by_sex_percentage_nuts2 +
-                         employment_thousand_hours_worked_nuts2 + farm_labour_force +
-                         health_personnel_by_nuts2 +
-                         hospital_discharges_resp_diseases_j00_to_j99_nuts2 +
-                         life_expectancy +
-                         longterm_care_beds_per_hundred_thousand_nuts2 + nama_10r_2gdp +
-                         participation_in_education_and_training + pop_density +
-                         population_nuts2 +
-                         pupils_and_students_enrolled_by_sex_age_and_nuts2 +
-                         real_growth_rate_of_regional_gross_value_added_GVA_at_basic_prices_by_nuts2 +
-                         stock_of_vehicles_by_category_and_nuts2 +
-                         students_enrolled_in_tertiary_education_by_education_level_programme_orientation_sex_and_nuts2 +
-                         unemployment_rate_nuts2 + utilised_agricultural_area +
-                         young_people_neither_in_employment_nor_in_education_and_training_by_sex_NEET_RATE_nuts2 +
-                         mat(pos + 0 | ID), dataset) # take some time to fit
-# model summary of fixed effects
-summary(m_tmb)
-
-library(DHARMa)
-sims <- simulateResiduals(m_tmb)
-plot(sims)
+rm(my_colors, mybreaks, mycolourscheme, tags)
 
 #### Transformation of response ----
 
@@ -993,48 +815,44 @@ plot(sims)
 
 par(mfrow=c(2,3))
 # histogram
-hist(jointdataset$cases_density_first_wave, breaks=16, col="grey", main='Histogram of wave 1 cases', prob = TRUE, xlab = 'Cases density')
+hist(dataset$Cases_density_1, breaks=16, col="grey", main='Histogram of wave 1 cases', prob = TRUE, xlab = 'Cases density')
 # highly skewed, transform to the log
-hist(log10(jointdataset$cases_density_first_wave+1), breaks=16, col="grey", main='Histogram of log(W1_cases+1)', prob = TRUE, xlab = 'log(W1_cases)')
+hist(log10(dataset$Cases_density_1+1), breaks=16, col="grey", main='Histogram of log(W1_cases+1)', prob = TRUE, xlab = 'log(W1_cases)')
 # power transform
-hist(sqrt(jointdataset$cases_density_first_wave), breaks=16, col="grey", main='Histogram of sqrt(W1_cases)', prob = TRUE, xlab = 'sqrt(W1_cases)')
+hist(sqrt(dataset$Cases_density_1), breaks=16, col="grey", main='Histogram of sqrt(W1_cases)', prob = TRUE, xlab = 'sqrt(W1_cases)')
 # logit transform
-hist(qlogis(jointdataset$cases_density_first_wave), breaks=16, col="grey", main='Histogram of logit(W1_cases)', prob = TRUE, xlab = 'logit(W1_cases)')
+hist(qlogis(dataset$Cases_density_1), breaks=16, col="grey", main='Histogram of logit(W1_cases)', prob = TRUE, xlab = 'logit(W1_cases)')
 # Z transform
-w1.z <- (jointdataset$cases_density_first_wave - mean(jointdataset$cases_density_first_wave))/sd(jointdataset$cases_density_first_wave)
+w1.z <- (dataset$Cases_density_1 - mean(dataset$Cases_density_1))/sd(dataset$Cases_density_1)
 hist(w1.z, breaks=16, col="grey", main='Histogram of Z(W1_cases)', prob = TRUE, xlab = 'Z(W1_cases)')
 # power transform
-hist((jointdataset$cases_density_first_wave)^(1/3), breaks=16, col="grey", main='Histogram of (W1_cases)^1/3', prob = TRUE, xlab = '(W1_cases)^1/3')
+hist((dataset$Cases_density_1)^(1/3), breaks=16, col="grey", main='Histogram of (W1_cases)^1/3', prob = TRUE, xlab = '(W1_cases)^1/3')
 
 par(mfrow=c(2,3))
 # histogram
-hist(jointdataset$cases_density_second_wave, breaks=16, col="grey", main='Histogram of wave 2 cases', prob = TRUE, xlab = 'Cases density')
+hist(dataset$Cases_density_2, breaks=16, col="grey", main='Histogram of wave 2 cases', prob = TRUE, xlab = 'Cases density')
 # highly skewed, transform to the log
-hist(log10(jointdataset$cases_density_second_wave+1), breaks=16, col="grey", main='Histogram of log(W2_cases+1)', prob = TRUE, xlab = 'log(W2_cases)')
+hist(log10(dataset$Cases_density_2+1), breaks=16, col="grey", main='Histogram of log(W2_cases+1)', prob = TRUE, xlab = 'log(W2_cases)')
 # power transform
-hist(sqrt(jointdataset$cases_density_second_wave), breaks=16, col="grey", main='Histogram of sqrt(W2_cases)', prob = TRUE, xlab = 'sqrt(W2_cases)')
+hist(sqrt(dataset$Cases_density_2), breaks=16, col="grey", main='Histogram of sqrt(W2_cases)', prob = TRUE, xlab = 'sqrt(W2_cases)')
 # logit transform
-hist(qlogis(jointdataset$cases_density_second_wave), breaks=16, col="grey", main='Histogram of logit(W2_cases)', prob = TRUE, xlab = 'logit(W2_cases)')
+hist(qlogis(dataset$Cases_density_2), breaks=16, col="grey", main='Histogram of logit(W2_cases)', prob = TRUE, xlab = 'logit(W2_cases)')
 # Z transform
-w1.z <- (jointdataset$cases_density_second_wave - mean(jointdataset$cases_density_second_wave))/sd(jointdataset$cases_density_second_wave)
+w1.z <- (dataset$Cases_density_2 - mean(dataset$Cases_density_2))/sd(dataset$Cases_density_2)
 hist(w1.z, breaks=16, col="grey", main='Histogram of Z(W2_cases)', prob = TRUE, xlab = 'Z(W2_cases)')
 # power transform
-hist((jointdataset$cases_density_second_wave)^(1/3), breaks=16, col="grey", main='Histogram of (W2_cases)^1/3', prob = TRUE, xlab = '(W2_cases)^1/3')
+hist((dataset$Cases_density_2)^(1/3), breaks=16, col="grey", main='Histogram of (W2_cases)^1/3', prob = TRUE, xlab = '(W2_cases)^1/3')
 
 
 # https://chrischizinski.github.io/SNR_R_Group/2016-08-10-Data-Transformations
-
 
 # Instead of transforming, could do logistic regression (with LASSO)
 ## diagnostics for logistic regression are different from OLS regression
 ## we'll work with the residuals so it can be problematic
 
+rm(w1.z)
+
 #### LASSO ----
-
-dataset <- read.csv("dataset.csv", header=TRUE, stringsAsFactors=FALSE)
-
-#install.packages('glmnet')
-library(glmnet)
 
 coeff2dt <- function(fitobject, s) {
   coeffs <- coef(fitobject, s) 
@@ -1046,45 +864,51 @@ coeff2dt <- function(fitobject, s) {
 
 #### Wave 1 ----
 
-dataset$response1 <- qlogis(dataset$cases_density_first_wave)
-#qlogis(dataset$cases_density_first_wave)
+dataset$response1 <- qlogis(dataset$Cases_density_1)
+#qlogis(dataset$Cases_density_1)
 ## intercept is largest, 9 features
-#sqrt(dataset$cases_density_first_wave)
+#sqrt(dataset$Cases_density_1)
 ##worse than logit
-#log10(dataset$cases_density_first_wave+1)
+#log10(dataset$Cases_density_1+1)
 ##all betas 0
-#(dataset$cases_density_first_wave - mean(dataset$cases_density_first_wave))/sd(dataset$cases_density_first_wave)
+#(dataset$Cases_density_1 - mean(dataset$Cases_density_1))/sd(dataset$Cases_density_1)
 ##best so far but intercept is largest
-#(dataset$cases_density_first_wave)^(1/3)
+#(dataset$Cases_density_1)^(1/3)
 ##same as sqrt
 
 # Build the matrix of predictors
 options(na.action='na.omit')
 #options(na.action='na.pass')
-x <- model.matrix(response1 ~ air_passengers +
-                    available_hospital_beds_nuts2 +
-                    causes_of_death_crude_death_rate_3year_average_by_nuts2 +
-                    compensation_of_employees_by_nuts2 +
-                    deaths + early_leavers_from_education_and_training_by_sex_percentage_nuts2 +
-                    employment_thousand_hours_worked_nuts2 + farm_labour_force +
-                    health_personnel_by_nuts2 +
-                    hospital_discharges_resp_diseases_j00_to_j99_nuts2 +
-                    life_expectancy +
-                    longterm_care_beds_per_hundred_thousand_nuts2 + nama_10r_2gdp +
-                    participation_in_education_and_training +
-                    pop_density +
-                    population_nuts2 +
-                    pupils_and_students_enrolled_by_sex_age_and_nuts2 +
-                    real_growth_rate_of_regional_gross_value_added_GVA_at_basic_prices_by_nuts2 +
-                    stock_of_vehicles_by_category_and_nuts2 +
-                    students_enrolled_in_tertiary_education_by_education_level_programme_orientation_sex_and_nuts2 +
-                    unemployment_rate_nuts2 + utilised_agricultural_area +
-                    young_people_neither_in_employment_nor_in_education_and_training_by_sex_NEET_RATE_nuts2, data=dataset)[,-1]
+x <- model.matrix(response1 ~ Air_passengers+
+                    Hospital_beds+
+                    Death_rate+
+                    Compensation_of_employees+
+                    Deaths+
+                    Early_leavers_from_ed.+
+                    Employment_worked_hrs.+
+                    Farm_labour_force+
+                    Health_personnel+
+                    Respiratory_discharges+
+                    Life_expectancy+
+                    Longterm_care_beds+
+                    Gross_domestic_product+
+                    Ed._participation+
+                    Population_density+
+                    Population+
+                    Pupils_enrolled+
+                    GVA_growth+
+                    Vehicles+
+                    Tertiary_ed._students+
+                    Unemployment_rate+
+                    Utilised_agricultural_area+
+                    NEET_rate, data=dataset)[,-1]
+# Currently 108 valid rows
+
 # Build the vector of response
 y <- dataset[row.names(x),]$response1
 
+par(mfrow=c(1,1))
 par(mar=c(4,6,4,6)+0.1)  # BLTR
-
 boxplot(y)
 
 # Let's set a grid of candidate lambda's for the estimate
@@ -1093,7 +917,8 @@ fit.lasso <- glmnet(x,y, lambda = lambda.grid) # default: alpha=1 -> lasso
 
 par(mfrow=c(1,1))
 plot(fit.lasso, xvar='lambda', label=TRUE, col = rainbow(dim(x)[2]))
-legend('topright', dimnames(x)[[2]], col =  rainbow(dim(x)[2]), lty=1, cex=0.5)
+labs <- gsub("_", " ", dimnames(x)[[2]])
+legend('topright', labs, col =  rainbow(dim(x)[2]), lty=1, cex=0.8)
 
 # Let's set lambda via cross validation
 cv.lasso <- cv.glmnet(x,y,lambda=lambda.grid) # default: 10-fold CV
@@ -1104,10 +929,13 @@ bestlam.lasso
 plot(cv.lasso)
 
 coeffs.table <- coeff2dt(fitobject = cv.lasso, s = 'lambda.min')
-barplot(coeffs.table$coefficient[1:14], col = rainbow(dim(x)[2]))
-legend('topright', coeffs.table$name[1:14], col =  rainbow(dim(x)[2]), lty=1, cex=0.5)
 
-rm(x, y, fit.lasso, cv.lasso, bestlam.lasso, lambda.grid)
+labs <- gsub("_", " ", coeffs.table$name[1:21])
+barplot(coeffs.table$coefficient[1:21], col = rainbow(dim(x)[2]),
+main = "Coefficients of selected model")
+legend('topright', labs, col =  rainbow(dim(x)[2]), lty=1, cex=0.5, ncol=2)
+
+rm(x, y, fit.lasso, cv.lasso, bestlam.lasso, lambda.grid, labs)
 
 #### Wave 1 residuals -----------------
 
@@ -1117,22 +945,26 @@ rm(x, y, fit.lasso, cv.lasso, bestlam.lasso, lambda.grid)
 # Assumption: Eps ~ N(0, sigma^2)
 
 # Logit transform
-fm1 <- lm(response1 ~ #air_passengers +
-                 available_hospital_beds_nuts2 +
-                 causes_of_death_crude_death_rate_3year_average_by_nuts2 +
-                 early_leavers_from_education_and_training_by_sex_percentage_nuts2 +
-                 farm_labour_force +
-                 hospital_discharges_resp_diseases_j00_to_j99_nuts2 +
-                 life_expectancy +
-                 longterm_care_beds_per_hundred_thousand_nuts2 +
-                 pop_density +
-                 population_nuts2 +
-                 pupils_and_students_enrolled_by_sex_age_and_nuts2 +
-                 real_growth_rate_of_regional_gross_value_added_GVA_at_basic_prices_by_nuts2 +
-                 #stock_of_vehicles_by_category_and_nuts2 +
-                 unemployment_rate_nuts2 +
-                 utilised_agricultural_area +
-                 young_people_neither_in_employment_nor_in_education_and_training_by_sex_NEET_RATE_nuts2, data=dataset)
+fm1 <- lm(response1 ~ Air_passengers+
+            Death_rate+
+            Compensation_of_employees+
+            Deaths+
+            Employment_worked_hrs.+
+            Farm_labour_force+
+            Respiratory_discharges+
+            Life_expectancy+
+            Longterm_care_beds+
+            Gross_domestic_product+
+            Ed._participation+
+            Population_density+
+            Population+
+            Pupils_enrolled+
+            GVA_growth+
+            Vehicles+
+            Tertiary_ed._students+
+            Unemployment_rate+
+            Utilised_agricultural_area+
+            NEET_rate, data=dataset)
 
 # Z transform
 '''
@@ -1161,33 +993,13 @@ shapiro.test(residuals(fm1))
 library(gstat)  ## Geostatistics
 library(sp)  ##Data management
 resid_w1 <- data.frame(residuals(fm1))
-resid_w1 <- merge(dataset[row.names(resid_w1), c('latitude', 'longitude')], resid_w1, by=0)
-resid_w1$latitude <- as.numeric(resid_w1$latitude)
-resid_w1$longitude <- as.numeric(resid_w1$longitude)
+resid_w1 <- merge(dataset[row.names(resid_w1), c('Latitude', 'Longitude')], resid_w1, by=0)
+resid_w1$Latitude <- as.numeric(resid_w1$Latitude)
+resid_w1$Longitude <- as.numeric(resid_w1$Longitude)
 resid_w1$residuals.fm1. <- as.numeric(resid_w1$residuals.fm1.)
 resid_w1$Row.names <- as.numeric(resid_w1$Row.names)
 
-library(plotly)
-library(ggplot2)
-
-g <- list(scope = 'europe',
-          resolution = 50,
-          showland = TRUE,
-          landcolor = toRGB("gray85"),
-          showframe = TRUE,
-          showcountries = T,
-          countrycolor = toRGB("gray50"))
-
-fig <- plot_geo(resid_w1, sizes = c(1, 126))
-fig <- fig %>% add_markers(
-  x = ~latitude, y = ~longitude, size=~1, color = ~residuals.fm1., hoverinfo = "text",
-  text = ~paste(resid_w1$Row.names)
-)
-fig <- fig %>% layout(title = 'Residuals over Europe',
-                      geo = g) %>% colorbar(title = "Model residuals<br />First wave")
-fig
-
-coordinates(resid_w1) <- c('latitude','longitude')
+coordinates(resid_w1) <- c('Latitude','Longitude')
 
 # sample variogram (binned estimator)
 samp_vgm <- variogram(residuals.fm1. ~ 1, data=resid_w1)
@@ -1197,7 +1009,7 @@ plot(samp_vgm, main = 'Sample Variogram', pch=19)
 # basis of distance to compute the empirical variogram
 
 # residual variogram w.r.t. a linear trend:
-res_vgm <- variogram(residuals.fm1.~latitude+longitude, data=resid_w1)
+res_vgm <- variogram(residuals.fm1.~Latitude+Longitude, data=resid_w1)
 plot(res_vgm, main = 'Residual Variogram', pch=19)
 # automatically decides to ignore direction: point pairs are merged on the
 # basis of distance to compute the empirical variogram
@@ -1210,7 +1022,7 @@ plot(variogram(residuals.fm1. ~ 1, data=resid_w1,
 # panel (not too many directions otherwise noise will increase)
 # Note: zonal anisotropy
 
-plot(variogram(residuals.fm1. ~ latitude+longitude, data=resid_w1,
+plot(variogram(residuals.fm1.~Latitude+Longitude, data=resid_w1,
                alpha = c(0, 45, 90, 135)), pch=19, main = 'Residual Variogram')
 # point pairs whose separation vector has a given direction are used in each
 # panel (not too many directions otherwise noise will increase)
@@ -1221,13 +1033,13 @@ plot(variogram(residuals.fm1. ~ latitude+longitude, data=resid_w1,
 # lag width: width of distance intervals over which point pairs are averaged
 #            in bins (default = cutoff distance / 15)
 
-coff <- 40
+coff <- 18
 
 plot(variogram(residuals.fm1. ~ 1, data=resid_w1,
-               cutoff = coff, width = coff/15), pch=19, main = 'Sample Variogram (cutoff=20)')
+               cutoff = coff, width = coff/15), pch=19, main = paste('Sample Variogram, cutoff =',coff))
 
-plot(variogram(residuals.fm1. ~ latitude+longitude, data=resid_w1,
-               cutoff = coff, width = coff/15), pch=19, main = 'Residual Variogram (cutoff=20)')
+plot(variogram(residuals.fm1. ~ Latitude+Longitude, data=resid_w1,
+               cutoff = coff, width = coff/15), pch=19, main = paste('Residual Variogram, cutoff =',coff))
 
 rm(fm1, coeffs.table, samp_vgm, res_vgm)
 
@@ -1240,7 +1052,7 @@ v <- variogram(residuals.fm1. ~ 1, data=resid_w1,
 ## STEPS:
 ## 1) choose a suitable model
 plot(v,pch=19)
-vgm()
+#vgm()
 ## 2) choose suitable initial values for partial sill, range & nugget
 v.fit1 <- fit.variogram(v, vgm(1, "Exp", 5, 5))
 v.fit2 <- fit.variogram(v, vgm(1, "Exc", 5, 5))
@@ -1252,43 +1064,52 @@ plot(v, v.fit1, pch = 19, main="Exponential model")
 plot(v, v.fit2, pch = 19, main="Exclass model")
 plot(v, v.fit3, pch = 19, main="Bessel model")
 
+# Validation: reproduce the experimental values
+
+## TO DO
+
 rm(resid_w1, v, v.fit1, v.fit2, v.fit3, coff)
 
 #### Wave 2 ----
 
-dataset$response2 <- (dataset$cases_density_second_wave - mean(dataset$cases_density_second_wave))/sd(dataset$cases_density_second_wave)
-#qlogis(dataset$cases_density_second_wave)
+dataset$response2 <- (dataset$Cases_density_2 - mean(dataset$Cases_density_2))/sd(dataset$Cases_density_2)
+#qlogis(dataset$Cases_density_2)
+## doesnt work
+#sqrt(dataset$Cases_density_2)
+## not better than Z transform
+#log10(dataset$Cases_density_2)
+## doesnt work
+#(dataset$Cases_density_2 - mean(dataset$Cases_density_2))/sd(dataset$Cases_density_2)
 ## nice
-#sqrt(dataset$cases_density_second_wave)
-## still ok
-#log10(dataset$cases_density_second_wave+1)
-## worse
-#(dataset$cases_density_second_wave - mean(dataset$cases_density_second_wave))/sd(dataset$cases_density_second_wave)
-## nice
-#(dataset$cases_density_second_wave)^(1/3)
-## ok
+#(dataset$Cases_density_2)^(1/3)
+## bad
 
 # Build the matrix of predictors
 options(na.action='na.omit')
 #options(na.action='na.pass')
-x <- model.matrix(response2 ~ air_passengers +
-                    available_hospital_beds_nuts2 +
-                    causes_of_death_crude_death_rate_3year_average_by_nuts2 +
-                    compensation_of_employees_by_nuts2 +
-                    deaths + early_leavers_from_education_and_training_by_sex_percentage_nuts2 +
-                    employment_thousand_hours_worked_nuts2 + farm_labour_force +
-                    health_personnel_by_nuts2 +
-                    hospital_discharges_resp_diseases_j00_to_j99_nuts2 +
-                    life_expectancy +
-                    longterm_care_beds_per_hundred_thousand_nuts2 + nama_10r_2gdp +
-                    participation_in_education_and_training + pop_density +
-                    population_nuts2 +
-                    pupils_and_students_enrolled_by_sex_age_and_nuts2 +
-                    real_growth_rate_of_regional_gross_value_added_GVA_at_basic_prices_by_nuts2 +
-                    stock_of_vehicles_by_category_and_nuts2 +
-                    students_enrolled_in_tertiary_education_by_education_level_programme_orientation_sex_and_nuts2 +
-                    unemployment_rate_nuts2 + utilised_agricultural_area +
-                    young_people_neither_in_employment_nor_in_education_and_training_by_sex_NEET_RATE_nuts2, data=dataset)[,-1]
+x <- model.matrix(response2 ~ Air_passengers+
+                    Hospital_beds+
+                    Death_rate+
+                    Compensation_of_employees+
+                    Deaths+
+                    Early_leavers_from_ed.+
+                    Employment_worked_hrs.+
+                    Farm_labour_force+
+                    Health_personnel+
+                    Respiratory_discharges+
+                    Life_expectancy+
+                    Longterm_care_beds+
+                    Gross_domestic_product+
+                    Ed._participation+
+                    Population_density+
+                    Population+
+                    Pupils_enrolled+
+                    GVA_growth+
+                    Vehicles+
+                    Tertiary_ed._students+
+                    Unemployment_rate+
+                    Utilised_agricultural_area+
+                    NEET_rate, data=dataset)[,-1]
 # Build the vector of response
 y <- dataset[row.names(x),]$response2
 
@@ -1301,7 +1122,8 @@ fit.lasso <- glmnet(x,y, lambda = lambda.grid) # default: alpha=1 -> lasso
 
 par(mfrow=c(1,1))
 plot(fit.lasso, xvar='lambda', label=TRUE, col = rainbow(dim(x)[2]))
-legend('topright', dimnames(x)[[2]], col =  rainbow(dim(x)[2]), lty=1, cex=0.5)
+labs <- gsub("_", " ", dimnames(x)[[2]])
+legend('topright', dimnames(x)[[2]], col =  rainbow(dim(x)[2]), lty=1, cex=0.7)
 
 # Let's set lambda via cross validation
 cv.lasso <- cv.glmnet(x,y,lambda=lambda.grid) # default: 10-fold CV
@@ -1312,10 +1134,12 @@ bestlam.lasso
 plot(cv.lasso)
 
 coeffs.table <- coeff2dt(fitobject = cv.lasso, s = 'lambda.min')
-barplot(coeffs.table$coefficient[2:13], col = rainbow(dim(x)[2]))
-legend('bottomleft', coeffs.table$name[2:13], col =  rainbow(dim(x)[2]), lty=1, cex=0.6)
 
-rm(x, y, fit.lasso, cv.lasso, bestlam.lasso, lambda.grid)
+labs <- gsub("_", " ", coeffs.table$name[2:23])
+barplot(coeffs.table$coefficient[2:23], col = rainbow(dim(x)[2]))
+legend('topright', labs, col=rainbow(dim(x)[2]), lty=1, cex=0.6, ncol=2)
+
+rm(x, y, fit.lasso, cv.lasso, bestlam.lasso, lambda.grid, labs)
 
 #### Wave 2 residuals -----------------
 
@@ -1328,57 +1152,42 @@ rm(x, y, fit.lasso, cv.lasso, bestlam.lasso, lambda.grid)
 # Cubic and square root transform: Too low
 
 # Z transform: Good
-fm2 <- lm(response2 ~ #available_hospital_beds_nuts2 +
-            causes_of_death_crude_death_rate_3year_average_by_nuts2 +
-            compensation_of_employees_by_nuts2 +
-            early_leavers_from_education_and_training_by_sex_percentage_nuts2 +
-            farm_labour_force +
-            health_personnel_by_nuts2 +
-            life_expectancy +
-            longterm_care_beds_per_hundred_thousand_nuts2 +
-            participation_in_education_and_training +
-            pop_density +
-            real_growth_rate_of_regional_gross_value_added_GVA_at_basic_prices_by_nuts2 +
-            #students_enrolled_in_tertiary_education_by_education_level_programme_orientation_sex_and_nuts2 +
-            unemployment_rate_nuts2 +
-            utilised_agricultural_area +
-            young_people_neither_in_employment_nor_in_education_and_training_by_sex_NEET_RATE_nuts2, data=dataset)
+fm2 <- lm(response2 ~ Air_passengers+
+            Hospital_beds+
+            Death_rate+
+            Compensation_of_employees+
+            Deaths+
+            Early_leavers_from_ed.+
+            Employment_worked_hrs.+
+            Farm_labour_force+
+            Health_personnel+
+            Respiratory_discharges+
+            Life_expectancy+
+            Longterm_care_beds+
+            Gross_domestic_product+
+            Ed._participation+
+            Population_density+
+            Population+
+            Pupils_enrolled+
+            GVA_growth+
+            Vehicles+
+            Unemployment_rate+
+            Utilised_agricultural_area+
+            NEET_rate, data=dataset)
 
 par(mfrow=c(2,2))
 plot(fm2)
 
 shapiro.test(residuals(fm2))
 
-library(gstat)  ## Geostatistics
-library(sp)  ##Data management
 resid_w2 <- data.frame(residuals(fm2))
-resid_w2 <- merge(dataset[row.names(resid_w2), c('latitude', 'longitude')], resid_w2, by=0)
-resid_w2$latitude <- as.numeric(resid_w2$latitude)
-resid_w2$longitude <- as.numeric(resid_w2$longitude)
+resid_w2 <- merge(dataset[row.names(resid_w2), c('Latitude', 'Longitude')], resid_w2, by=0)
+resid_w2$Latitude <- as.numeric(resid_w2$Latitude)
+resid_w2$Longitude <- as.numeric(resid_w2$Longitude)
 resid_w2$residuals.fm2. <- as.numeric(resid_w2$residuals.fm2.)
 resid_w2$Row.names <- as.numeric(resid_w2$Row.names)
 
-library(plotly)
-library(ggplot2)
-
-g <- list(scope = 'europe',
-  resolution = 50,
-  showland = TRUE,
-  landcolor = toRGB("gray85"),
-  showframe = TRUE,
-  showcountries = T,
-  countrycolor = toRGB("gray50"))
-
-fig <- plot_geo(resid_w2, sizes = c(1, 126))
-fig <- fig %>% add_markers(
-  x = ~latitude, y = ~longitude, size=~1, color = ~residuals.fm2., hoverinfo = "text",
-  text = ~paste(resid_w2$Row.names)
-)
-fig <- fig %>% layout(title = 'Residuals over Europe',
-                      geo = g) %>% colorbar(title = "Model residuals<br />Second wave")
-fig
-
-coordinates(resid_w2) <- c('latitude','longitude')
+coordinates(resid_w2) <- c('Latitude','Longitude')
 
 # sample variogram (binned estimator)
 samp_vgm <- variogram(residuals.fm2. ~ 1, data=resid_w2)
@@ -1388,7 +1197,7 @@ plot(samp_vgm, main = 'Sample Variogram', pch=19)
 # basis of distance to compute the empirical variogram
 
 # residual variogram w.r.t. a linear trend:
-res_vgm <- variogram(residuals.fm2.~latitude+longitude, data=resid_w2)
+res_vgm <- variogram(residuals.fm2.~Latitude+Longitude, data=resid_w2)
 plot(res_vgm, main = 'Residual Variogram', pch=19)
 # automatically decides to ignore direction: point pairs are merged on the
 # basis of distance to compute the empirical variogram
@@ -1401,7 +1210,7 @@ plot(variogram(residuals.fm2. ~ 1, data=resid_w2,
 # panel (not too many directions otherwise noise will increase)
 # Note: zonal anisotropy
 
-plot(variogram(residuals.fm2. ~ latitude+longitude, data=resid_w2,
+plot(variogram(residuals.fm2. ~ Latitude+Longitude, data=resid_w2,
                alpha = c(0, 45, 90, 135)), pch=19, main = 'Residual Variogram')
 # point pairs whose separation vector has a given direction are used in each
 # panel (not too many directions otherwise noise will increase)
@@ -1412,12 +1221,12 @@ plot(variogram(residuals.fm2. ~ latitude+longitude, data=resid_w2,
 # lag width: width of distance intervals over which point pairs are averaged
 #            in bins (default = cutoff distance / 15)
 
-coff <- 30
+coff <- 12
 
 plot(variogram(residuals.fm2. ~ 1, data=resid_w2,
                cutoff = coff, width = coff/15), pch=19, main = paste('Sample Variogram, cutoff =',coff))
 
-plot(variogram(residuals.fm2. ~ latitude+longitude, data=resid_w2,
+plot(variogram(residuals.fm2. ~ Latitude+Longitude, data=resid_w2,
                cutoff = coff, width = coff/15), pch=19, main = paste('Residual Variogram, cutoff =',coff))
 
 rm(fm2, coeffs.table, samp_vgm, res_vgm, coeff2dt)
@@ -1443,68 +1252,71 @@ plot(v, v.fit1, pch = 19, main="Exponential model")
 plot(v, v.fit2, pch = 19, main="Pentaspherical model")
 plot(v, v.fit3, pch = 19, main="Bessel model")
 
+# Validation: reproduce the experimental values
+
+## TO DO
+
 rm(resid_w2, v, v.fit1, v.fit2, v.fit3, coff)
 
 #### LISA ----
 
-library(rgeoda)
-library(sf)
 
-setwd('/home/fpjaa/Documents/GitHub/geostats-covid/Polygons/')
-nuts_polyg <- st_read("NUTS_RG_20M_2021_4326.shp")
-nuts_polyg <- nuts_polyg[nuts_polyg$LEVL_CODE!="3",]
-nuts_polyg <- nuts_polyg[nuts_polyg$LEVL_CODE!="0",]
-# We have NUTS1 data: DE + BE
-colnames(nuts_polyg)[1] <- "NUTS"
 
-lost <- anti_join(dataset, nuts_polyg, by="NUTS")
+## Extra ----
+#### Summary ----
 
-nuts_polyg1 <- st_read("NUTS_RG_20M_2013_4326.shp")
-colnames(nuts_polyg1)[1] <- "NUTS"
+data1$name <- replace(data1$name, data1$name=="Germany (until 1990 former territory of the FRG)", "Germany")
+regions_by_country <- table(data1$name)
 
-nuts_polyg1 <- merge(nuts_polyg1, lost[, c(1,27)], by = 'NUTS')
+par(mfrow=c(1,1))
+par(mar=c(5,7,4,3)+0.1)  # BLTR
+barplot(regions_by_country,
+        main = "Regions considered by country",
+        xlab = "Amount of regions",
+        ylab = "",
+        col = "darkblue",
+        las = 1,
+        cex.names = 1,
+        horiz = TRUE)
 
-lost <- anti_join(lost, nuts_polyg1, by="NUTS")
+library(psych) 
+#create summary table
+resumen <- describe(data[,-c(1,25, 26, 27)])
+resumen <- data.frame(t(resumen))
+resumen <- cbind(row.names(resumen), resumen)
+write_csv(resumen, 'summary.csv')
 
-nuts_polyg <- rbind(nuts_polyg[,-c(6:8)], nuts_polyg1[,-c(7)])
+rm(resumen)
 
-nuts_polyg1 <- st_read("NUTS_RG_20M_2006_4326.shp")
-#nuts_polyg1 <- nuts_polyg1[nuts_polyg1$LEVL_CODE=="2",]
-colnames(nuts_polyg1)[1] <- "NUTS"
+#### Map plots (deprecated) ----
 
-nuts_polyg1 <- merge(nuts_polyg1, lost[, c(1,27)], by = 'NUTS')
+library(plotly)
+library(ggplot2)
 
-nuts_polyg <- rbind(nuts_polyg, nuts_polyg1[,-c(7)])
+g <- list(
+  scope = 'europe',
+  resolution = 50,
+  showland = TRUE,
+  landcolor = toRGB("gray85"),
+  showframe = TRUE,
+  showcountries = T,
+  countrycolor = toRGB("gray50")
+)
 
-rm(lost)
+fig <- plot_geo(dataset, sizes = c(1, 126))
+fig <- fig %>% add_markers(
+  x = ~latitude, y = ~longitude, size=~population_nuts2, color = ~cases_density_first_wave, hoverinfo = "text",
+  text = ~paste(dataset$NUTS)
+)
+fig <- fig %>% layout(title = 'Europe regions',
+                      geo = g) %>% colorbar(title = "Cases density<br />First wave")
+fig
 
-#### Map plots ----
-
-par(mar=c(2,4,2,4)+0.1)  # BLTR
-plot(nuts_polyg$geometry, xlim=c(-20,30), ylim=c(25,60))
-
-# Note there are islands far away that are european dominated
-# In the dataset, when making a boxplot of latitude, we note some outliers
-# under -40 that could be discarded since they are said islands,
-# they are only 3 locations
-# Similarly, some negative longitudes can be discarded,
-# they are not the same locations, but an extra of 2 locations
-
-dataset <- dataset[dataset$latitude>-40,]
-dataset <- dataset[dataset$longitude>0,]
-
-my_colors <- c("white", heat.colors(5))
-mybreaks <- c(0, seq(from = min(dataset$cases_density_first_wave),
-                     to = max(dataset$cases_density_first_wave),
-                     length.out = 5))
-
-nuts_polyg_tagged <- merge(nuts_polyg[,c(1,7)], dataset[,c(1,25)], by="NUTS", all=TRUE)
-nuts_polyg_tagged$cases_density_first_wave[is.na(nuts_polyg_tagged$cases_density_first_wave)] <- 0
-tags <- cut(nuts_polyg_tagged$cases_density_first_wave, mybreaks)
-
-mycolourscheme <- my_colors[findInterval(nuts_polyg_tagged$cases_density_first_wave, vec = mybreaks)]
-
-# we can then generate our plot from the modified .shp file
-# the labels are generated from the centroids
-plot(nuts_polyg$geometry, col = mycolourscheme,
-     xlim=c(-20,30), ylim=c(25,60))
+fig <- plot_geo(dataset, sizes = c(1, 126))
+fig <- fig %>% add_markers(
+  x = ~latitude, y = ~longitude, size=~population_nuts2, color = ~cases_density_second_wave, hoverinfo = "text",
+  text = ~paste(dataset$NUTS)
+)
+fig <- fig %>% layout(title = 'Europe regions',
+                      geo = g) %>% colorbar(title = "Cases density<br />Second wave")
+fig
