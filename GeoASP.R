@@ -10,6 +10,7 @@ rm(list=ls())
 ## Load packages
 
 library(readr)  # Read tsv for national means
+library(openxlsx)  # Read excel for national totals
 library(dplyr)  # Data management
 library(geojsonR)  # Load geojson points
 
@@ -20,6 +21,9 @@ setwd('/home/fpjaa/Documents/GitHub/geostats-covid/')
 data <- read.csv("ASPdataset.csv", header=TRUE, stringsAsFactors=FALSE)
 data <- data[, -c(25, 26, 27, 28)]
 data <- data[!is.na(data$cases_density_first_wave),]
+
+# Exclude french islands
+data <- data[substr(data$NUTS,1,3)!="FRY",]
 
 data$country = substr(data$NUTS,1,2)
 
@@ -34,7 +38,7 @@ air <- air[,c(1,ncol(air))]
 colnames(air)[ncol(air)] <- 'air'
 
 avail <- read_tsv('available_hospital_beds_nuts2.tsv')
-avail <- avail[,c(1,ncol(avail))]
+avail <- avail[,c(1,ncol(avail)-1)]
 colnames(avail)[ncol(avail)] <- 'avail'
 
 causes <- read_tsv('causes_of_death_crude_death_rate_3year_average_by_nuts2.tsv')
@@ -54,7 +58,7 @@ early <- early[,c(1,ncol(early))]
 colnames(early)[ncol(early)] <- 'early'
 
 employ <- read_tsv('employment_thousand_hours_worked_nuts2.tsv')
-employ <- employ[,c(1,ncol(employ))]
+employ <- employ[,c(1,ncol(employ)-7)]
 colnames(employ)[ncol(employ)] <- 'employ'
 
 farm <- read_tsv('farm_labour_force.tsv')
@@ -62,7 +66,7 @@ farm <- farm[,c(1,ncol(farm))]
 colnames(farm)[ncol(farm)] <- 'farm'
 
 health <- read_tsv('health_personnel_by_nuts2.tsv')
-health <- health[,c(1,ncol(health))]
+health <- health[,c(1,ncol(health)-3)]
 colnames(health)[ncol(health)] <- 'health'
 
 hosp <- read_tsv('hospital_discharges_resp_diseases_j00_to_j99_nuts2.tsv')
@@ -74,7 +78,7 @@ life <- life[,c(1,ncol(life))]
 colnames(life)[ncol(life)] <- 'life'
 
 longterm <- read_tsv('longterm_care_beds_per_hundred_thousand_nuts2.tsv')
-longterm <- longterm[,c(1,23)]  # Useless, only non NAs in 2015
+longterm <- longterm[,c(1,20)]  # Useless, only non NAs in 2015 (23)
 colnames(longterm)[ncol(longterm)] <- 'longterm'
 
 nama <- read_tsv('nama_10r_2gdp.tsv')
@@ -102,7 +106,7 @@ regGVA <- regGVA[,c(1,ncol(regGVA))]
 colnames(regGVA)[ncol(regGVA)] <- 'regGVA'
 
 stock <- read_tsv('stock_of_vehicles_by_category_and_nuts2.tsv')
-stock <- stock[,c(1,ncol(stock))]
+stock <- stock[,c(1,ncol(stock)-4)]
 colnames(stock)[ncol(stock)] <- 'stock'
 
 students <- read_tsv('students_enrolled_in_tertiary_education_by_education_level_programme_orientation_sex_and_nuts2.tsv')
@@ -141,16 +145,13 @@ rm(df_list, air, avail, causes, compens, death, early, employ, farm, health,
 
 setwd('/home/fpjaa/Documents/GitHub/geostats-covid/datasets_by_country/')
 
-#install.packages("openxlsx")
-library(openxlsx)
-
 air <- read.xlsx('air_passengers_by_country.xlsx', sheet=3)
 air <- air[8:37,c(1,2,ncol(air))]
 colnames(air) <- c('country', 'name', 'air')
 air$air <- as.numeric(air$air)
 
 avail <- read.xlsx('available_hosp_beds_by_country.xlsx', sheet=3)
-avail <- avail[8:44,c(1,ncol(avail)-1)]
+avail <- avail[8:44,c(1,ncol(avail)-3)]
 colnames(avail) <- c('name', 'available')
 avail$available <- as.numeric(avail$available)
 
@@ -175,7 +176,7 @@ colnames(early) <- c('name', 'early')
 early$early <- as.numeric(early$early)
 
 employ <- read.xlsx('employment_thous_by_country.xlsx', sheet=3)
-employ <- employ[9:35,c(1,ncol(employ)-1)]
+employ <- employ[9:35,c(1,ncol(employ)-15)]
 colnames(employ) <- c('name', 'employment')
 employ$employment <- as.numeric(employ$employ)
 
@@ -185,7 +186,7 @@ colnames(farm) <- c('name', 'farm')
 farm$farm <- as.numeric(farm$farm)
 
 health <- read.xlsx('health_personnel_by_country.xlsx', sheet=3)
-health <- health[8:44,c(1,ncol(health)-1)]
+health <- health[8:44,c(1,ncol(health)-7)]
 colnames(health) <- c('name', 'health')
 health$health <- as.numeric(health$health)
 
@@ -200,7 +201,7 @@ colnames(life) <- c('country', 'name', 'life')
 life$life <- as.numeric(life$life)
 
 longterm <- read.xlsx('longterm_beds_by_country.xlsx', sheet=3)
-longterm <- longterm[8:42,c(1,ncol(longterm)-1)]
+longterm <- longterm[8:42,c(1,ncol(longterm)-7)]
 colnames(longterm) <- c('name', 'longterm')
 longterm$longterm <- as.numeric(longterm$longterm)
 
@@ -235,7 +236,7 @@ colnames(regGVA) <- c('name', 'rgva')
 regGVA$rgva <- as.numeric(regGVA$rgva)
 
 stock <- read.xlsx('stock_of_vehicles_by_country.xlsx', sheet=3)
-stock <- stock[8:30,c(1,2,ncol(stock))]
+stock <- stock[8:30,c(1,2,ncol(stock)-4)]
 colnames(stock) <- c('country', 'name', 'stock')
 stock$stock <- as.numeric(stock$stock)
 
@@ -283,7 +284,7 @@ country_data <- country_data %>%
 
 my.max <- function(x) ifelse( !all(is.na(x)), max(x, na.rm=T), NA)
 my.min <- function(x) ifelse( !all(is.na(x)), min(x, na.rm=T), NA)
-err <- data.frame(matrix(ncol = 24, nrow = 3))
+err <- data.frame(matrix(ncol = 24, nrow = 9))
 colnames(err)[1] <- 'type'
 colnames(err)[2:24] <- colnames(country_data)[3:25]
 
@@ -292,10 +293,10 @@ colnames(err)[2:24] <- colnames(country_data)[3:25]
 data1 <- merge(data[,c(1,27)], means_by_country, by = 'country')
 
 # Validation
-errors <- data.frame(matrix(ncol = 24, nrow = 141))
+errors <- data.frame(matrix(ncol = 24, nrow = 136))
 errors[,1] <- data1[,2]
 colnames(errors) <- colnames(data1)[2:25]
-for (r in 1:141){
+for (r in 1:136){
   for (c in 2:24){
     if (!is.na(data[r,c]) && !is.na(data1[r,c+1]) && data[r,c] != 0){
       errors[r,c] <- (data1[r,c+1] - data[r,c])/data[r,c]
@@ -306,6 +307,11 @@ for (r in 1:141){
 err[1,1] <- 'mean'
 err[1,2:24] <- apply(errors[,2:24], 2, my.max) - apply(errors[,2:24], 2, my.min)
 
+err[4,1] <- 'mean_min'
+err[4,2:24] <- apply(errors[,2:24], 2, my.min)
+err[5,1] <- 'mean_max'
+err[5,2:24] <- apply(errors[,2:24], 2, my.max)
+
 # CY or PT for longterm beds doesn't exist
 
 #### Fill NAs: Trial by population proportion ----
@@ -313,10 +319,10 @@ err[1,2:24] <- apply(errors[,2:24], 2, my.max) - apply(errors[,2:24], 2, my.min)
 data1 <- merge(data[,c(1,27)], country_data, by = 'country')
 
 # Validation
-errors <- data.frame(matrix(ncol = 24, nrow = 141))
+errors <- data.frame(matrix(ncol = 24, nrow = 136))
 errors[,1] <- data1[,2]
 colnames(errors) <- colnames(data1)[3:26]
-for (r in 1:141){
+for (r in 1:136){
   for (c in 2:24){
     if (!is.na(data[r,c]) && !is.na(data1[r,c+1]) && data[r,c] != 0){
       replace <- data1[r,c+2]*data[r,17]/data1[r,19]
@@ -327,6 +333,11 @@ for (r in 1:141){
 
 err[2,1] <- 'pop'
 err[2,2:24] <- apply(errors[,2:24], 2, my.max) - apply(errors[,2:24], 2, my.min)
+
+err[6,1] <- 'pop_min'
+err[6,2:24] <- apply(errors[,2:24], 2, my.min)
+err[7,1] <- 'pop_max'
+err[7,2:24] <- apply(errors[,2:24], 2, my.max)
 
 # Fill data
 #for (r in 1:141){ for (c in 2:24){ if (is.na(data[r,c]) && !is.na(data1[r,c+1])){ replace <- data1[r,c+2]*data[r,17]/data1[r,19]; data[r,c] <- replace } }
@@ -442,19 +453,13 @@ dataset$longitude <- as.numeric(dataset$longitude)
 #### Fill NAs: Trial by weighted mean by distance ----
 
 library(sp)
-#air_grid <- dataset[!is.na(dataset[,2]),c(2,28,29)]
-#air_newdata <- dataset[is.na(dataset[,2]),c(2,28,29)]
-#coordinates(air_grid) <- c('latitude','longitude')
-#coordinates(air_newdata) <- c('latitude','longitude')
-
 library(gstat)
-#air_fill <- idw0(air_passengers ~ latitude + longitude, data = air_grid, newdata = air_newdata, idp = 2.0)
 
 # Validation
-errors <- data.frame(matrix(ncol = 24, nrow = 141))
+errors <- data.frame(matrix(ncol = 24, nrow = 136))
 errors[,1] <- data1[,2]
 colnames(errors) <- colnames(data1)[3:26]
-for (r in 1:141){
+for (r in 1:136){
   for (c in 2:24){
     if (!is.na(dataset[r,c]) && dataset[r,c] != 0){
       x_grid <- dataset[-c(r),c(c,28,29)]  # Discard the value to evaluate
@@ -471,9 +476,69 @@ for (r in 1:141){
 err[3,1] <- 'dist'
 err[3,2:24] <- apply(errors[,2:24], 2, my.max) - apply(errors[,2:24], 2, my.min)
 
+err[8,1] <- 'dist_min'
+err[8,2:24] <- apply(errors[,2:24], 2, my.min)
+err[9,1] <- 'dist_max'
+err[9,2:24] <- apply(errors[,2:24], 2, my.max)
+
 #dataset[is.na(dataset[,2]),2] <- air_fill
 
 #### Fill NAs ----
+
+# Before filling: Check NAs
+
+missing <- is.na(data[, -c(1, 25, 26)])
+missing <- rowSums(missing)
+
+data$country = substr(data$NUTS,1,2)
+countries <- merge(data[,c(1,27)], country_data[,c(1,2)], by = 'country')
+countries$name <- replace(countries$name, countries$name=="Germany (until 1990 former territory of the FRG)", "Germany")
+
+countries <- countries$name
+missing <- data.frame(countries, missing)
+colnames(missing) <- c('country', 'nans')
+missing$nans <- as.integer(missing$nans)
+
+missing <- missing %>%
+  group_by(country) %>%
+  summarise_all("max", na.rm = TRUE)
+
+par(mfrow=c(1,1))
+par(mar=c(5,7,4,3)+0.1)
+barplot(height = missing$nans,
+        names.arg = missing$country,
+        main = "Missing features by country",
+        xlab = "Country",
+        ylab = "",
+        col = "darkblue",
+        las = 1,
+        cex.names = 1,
+        horiz = TRUE)
+
+missing <- is.na(data[, -c(1, 25, 26,27)])
+missing <- colSums(missing)
+missing <- data.frame(missing)
+
+par(mfrow=c(1,1))
+par(mar=c(5,10,4,3)+0.1)
+barplot(height = missing$missing,
+        names.arg = c("Air passengers", "Hospital beds", "Death rate",
+                      "Compensation of employees", "Deaths (total)",
+                      "Early leavers from ed.", "Employment worked hrs.",
+                      "Farm labour force", "Health personnel",
+                      "Respiratory discharges", "Life expectancy",
+                      "Longterm care beds", "Gross domestic product",
+                      "Ed. participation", "Population density", "Population",
+                      "Pupils enrolled", "GVA growth", "Vehicles",
+                      "Tertiary ed. students", "Unemployment rate",
+                      "Utilised agricultural area", "NEET rate"),
+        main = "Missing data by feature",
+        xlab = "Country",
+        ylab = "",
+        col = "darkblue",
+        las = 1,
+        cex.names = 0.6,
+        horiz = TRUE)
 
 rm(errors, my.max, my.min)
 
@@ -484,17 +549,17 @@ legend("bottomleft",legend = err[c(3,2,1),1],
        col = c("black", "red", "blue"), pch = 1, cex = 0.8)
 
 # Winner by feature
-## Air = pop -> Problematic (over 1 as range)
-## Available = dist -> Problematic (bit over 1 as range)
+## Air = pop -> Problematic (over 1 as range) -> Shouldn't refill
+## Available = mean -> Problematic (bit over 1 as range)
 ## Causes = mean
 ## Compensation = pop -> Problematic (bit over 1 as range)
 ## Deaths doesn't need filling
 ## Early = pop
 ## Employment = pop -> Problematic (bit over 1 as range)
-## Farm = pop -> Problematic (over 1 as range)
+## Farm doesn't need filling
 ## Health = pop -> Problematic (bit over 1 as range)
 ## Discharges = pop
-## Life = dist
+## Life = mean
 ## Longterm = dist -> Problematic (over 1 as range)
 ## GDP = pop -> Problematic (bit over 1 as range)
 ## Participation = pop
@@ -505,35 +570,34 @@ legend("bottomleft",legend = err[c(3,2,1),1],
 ## Stock = pop -> Problematic (bit over 1 as range)
 ## Students = pop -> Problematic (bit over 1 as range)
 ## Unemployment = pop -> Problematic (bit over 1 as range)
-## Utilized = pop -> Problematic (over 1 as range)
+## Utilized doesn't need filling
 ## NEETs = pop
 
 # Fill data: Using means by country
-## Causes of death, GVA
+## Available, causes of death, life expectancy, GVA
 data1 <- merge(data[,c(1,27)], means_by_country, by = 'country')
-for (i in c(4,19)){
+for (i in c(3,4,12,19)){
   data[,i] <- ifelse(is.na(data[,i]), data1[,i+1], data[,i])
 }
 # Fill data: Using weights by population
 data1 <- merge(data[,c(1,27)], country_data, by = 'country')
-for (r in 1:141){
-  for (c in c(2,5,7,8,9,10,11,14,15,16,18,20,21,22,23,24)){
+for (r in 1:136){
+  for (c in c(5,7,8,10,11,14,15,16,18,20,21,22,24)){
     if (is.na(data[r,c]) && !is.na(data1[r,c+1])){
       replace <- data1[r,c+2]*data[r,17]/data1[r,19]
       data[r,c] <- replace
     }
   }
 }
-# Fill data: Using universal kriging
-for (c in c(3,12:13)){
-  x_grid <- dataset[!is.na(dataset[,c]),c(c,28,29)]  # Discard NAs
-  x_newdata <- dataset[is.na(dataset[,c]),c(c,28,29)]  # Values to replace
-  coordinates(x_grid) <- c('latitude','longitude')
-  coordinates(x_newdata) <- c('latitude','longitude')
-  replace <- idw0(as.formula(paste(colnames(dataset)[c],"~ latitude + longitude")), data = x_grid, newdata = x_newdata, idp = 2.0)
-  dataset[is.na(dataset[,c]),c] <- replace
-}
-data[,c(3,12:13)] <- dataset[,c(3,12:13)]
+# Universal kriging: Long-term care beds
+c <- 13
+x_grid <- dataset[!is.na(dataset[,c]),c(c,28,29)]  # Discard NAs
+x_newdata <- dataset[is.na(dataset[,c]),c(c,28,29)]  # Values to replace
+coordinates(x_grid) <- c('latitude','longitude')
+coordinates(x_newdata) <- c('latitude','longitude')
+replace <- idw0(as.formula(paste(colnames(dataset)[c],"~ latitude + longitude")), data = x_grid, newdata = x_newdata, idp = 2.0)
+dataset[is.na(dataset[,c]),c] <- replace
+data[,13] <- dataset[,13]
 
 rm(data1, means_by_country, c, r, i, replace, x_grid, x_newdata)
 
@@ -814,6 +878,7 @@ rm(my_colors, mybreaks, mycolourscheme, tags)
 # Z transform (x-mean)/std -> output N(0,1)
 
 par(mfrow=c(2,3))
+par(mar=c(2,6,2,4)+0.1)  # BLTR
 # histogram
 hist(dataset$Cases_density_1, breaks=16, col="grey", main='Histogram of wave 1 cases', prob = TRUE, xlab = 'Cases density')
 # highly skewed, transform to the log
@@ -872,7 +937,7 @@ dataset$response1 <- qlogis(dataset$Cases_density_1)
 #log10(dataset$Cases_density_1+1)
 ##all betas 0
 #(dataset$Cases_density_1 - mean(dataset$Cases_density_1))/sd(dataset$Cases_density_1)
-##best so far but intercept is largest
+## fails Shapiro
 #(dataset$Cases_density_1)^(1/3)
 ##same as sqrt
 
@@ -902,7 +967,7 @@ x <- model.matrix(response1 ~ Air_passengers+
                     Unemployment_rate+
                     Utilised_agricultural_area+
                     NEET_rate, data=dataset)[,-1]
-# Currently 108 valid rows
+# Currently 74 valid rows
 
 # Build the vector of response
 y <- dataset[row.names(x),]$response1
@@ -918,7 +983,7 @@ fit.lasso <- glmnet(x,y, lambda = lambda.grid) # default: alpha=1 -> lasso
 par(mfrow=c(1,1))
 plot(fit.lasso, xvar='lambda', label=TRUE, col = rainbow(dim(x)[2]))
 labs <- gsub("_", " ", dimnames(x)[[2]])
-legend('topright', labs, col =  rainbow(dim(x)[2]), lty=1, cex=0.8)
+legend('topright', labs, col =  rainbow(dim(x)[2]), lty=1, cex=0.8, ncol=2)
 
 # Let's set lambda via cross validation
 cv.lasso <- cv.glmnet(x,y,lambda=lambda.grid) # default: 10-fold CV
@@ -930,10 +995,10 @@ plot(cv.lasso)
 
 coeffs.table <- coeff2dt(fitobject = cv.lasso, s = 'lambda.min')
 
-labs <- gsub("_", " ", coeffs.table$name[1:21])
-barplot(coeffs.table$coefficient[1:21], col = rainbow(dim(x)[2]),
+labs <- gsub("_", " ", coeffs.table$name[1:15])
+barplot(coeffs.table$coefficient[1:15], col = rainbow(dim(x)[2]),
 main = "Coefficients of selected model")
-legend('topright', labs, col =  rainbow(dim(x)[2]), lty=1, cex=0.5, ncol=2)
+legend('topright', labs, col =  rainbow(dim(x)[2]), lty=1, cex=0.8, ncol=2)
 
 rm(x, y, fit.lasso, cv.lasso, bestlam.lasso, lambda.grid, labs)
 
@@ -945,44 +1010,29 @@ rm(x, y, fit.lasso, cv.lasso, bestlam.lasso, lambda.grid, labs)
 # Assumption: Eps ~ N(0, sigma^2)
 
 # Logit transform
-fm1 <- lm(response1 ~ Air_passengers+
+fm1 <- lm(response1 ~ #Air_passengers+
+            #Hospital_beds+
             Death_rate+
             Compensation_of_employees+
-            Deaths+
+            #Deaths+
+            Early_leavers_from_ed.+
             Employment_worked_hrs.+
-            Farm_labour_force+
+            #Farm_labour_force+
+            Health_personnel+
             Respiratory_discharges+
             Life_expectancy+
             Longterm_care_beds+
-            Gross_domestic_product+
+            #Gross_domestic_product+
             Ed._participation+
             Population_density+
-            Population+
-            Pupils_enrolled+
+            #Population+
+            #Pupils_enrolled+
             GVA_growth+
             Vehicles+
-            Tertiary_ed._students+
+            #Tertiary_ed._students+
             Unemployment_rate+
             Utilised_agricultural_area+
             NEET_rate, data=dataset)
-
-# Z transform
-'''
-fm1 <- lm(response1 ~ available_hospital_beds_nuts2 +
-            causes_of_death_crude_death_rate_3year_average_by_nuts2 +
-            compensation_of_employees_by_nuts2 +
-            early_leavers_from_education_and_training_by_sex_percentage_nuts2 +
-            farm_labour_force +
-            hospital_discharges_resp_diseases_j00_to_j99_nuts2 +
-            life_expectancy +
-            longterm_care_beds_per_hundred_thousand_nuts2 +
-            pupils_and_students_enrolled_by_sex_age_and_nuts2 +
-            real_growth_rate_of_regional_gross_value_added_GVA_at_basic_prices_by_nuts2 +
-            stock_of_vehicles_by_category_and_nuts2 +
-            unemployment_rate_nuts2 + 
-            utilised_agricultural_area +
-            young_people_neither_in_employment_nor_in_education_and_training_by_sex_NEET_RATE_nuts2, data=dataset)
-'''
 
 par(mfrow=c(2,2))
 par(mar=c(4,6,4,2)+0.5)  # BLTR
@@ -990,8 +1040,6 @@ plot(fm1)
 
 shapiro.test(residuals(fm1))
 
-library(gstat)  ## Geostatistics
-library(sp)  ##Data management
 resid_w1 <- data.frame(residuals(fm1))
 resid_w1 <- merge(dataset[row.names(resid_w1), c('Latitude', 'Longitude')], resid_w1, by=0)
 resid_w1$Latitude <- as.numeric(resid_w1$Latitude)
@@ -1033,7 +1081,7 @@ plot(variogram(residuals.fm1.~Latitude+Longitude, data=resid_w1,
 # lag width: width of distance intervals over which point pairs are averaged
 #            in bins (default = cutoff distance / 15)
 
-coff <- 18
+coff <- 10
 
 plot(variogram(residuals.fm1. ~ 1, data=resid_w1,
                cutoff = coff, width = coff/15), pch=19, main = paste('Sample Variogram, cutoff =',coff))
@@ -1055,14 +1103,26 @@ plot(v,pch=19)
 #vgm()
 ## 2) choose suitable initial values for partial sill, range & nugget
 v.fit1 <- fit.variogram(v, vgm(1, "Exp", 5, 5))
-v.fit2 <- fit.variogram(v, vgm(1, "Exc", 5, 5))
-v.fit3 <- fit.variogram(v, vgm(1, "Bes", 5, 5))
+v.fit2 <- fit.variogram(v, vgm(1, "Sph", 5, 5))
+v.fit3 <- fit.variogram(v, vgm(1, "Gau", 5, 5))
 
 ## 3) fit the model using one of the possible fitting criteria
 
 plot(v, v.fit1, pch = 19, main="Exponential model")
-plot(v, v.fit2, pch = 19, main="Exclass model")
-plot(v, v.fit3, pch = 19, main="Bessel model")
+plot(v, v.fit2, pch = 19, main="Spherical model")
+plot(v, v.fit3, pch = 19, main="Gaussian model")
+
+## Problem: Anisotropy: alpha = 0, 45, 90, 135
+
+v <- variogram(residuals.fm1. ~ 1, data=resid_w1,
+               cutoff = coff, width = coff/15, alpha = c(0, 45, 90, 135))
+plot(v,pch=19)
+v.fit1 <- fit.variogram(v, vgm(1, "Exp", 5, 5))
+v.fit2 <- fit.variogram(v, vgm(1, "Sph", 5, 5))
+v.fit3 <- fit.variogram(v, vgm(1, "Gau", 5, 5))
+plot(v, v.fit1, pch = 19, main="Exponential model")
+plot(v, v.fit2, pch = 19, main="Spherical model")
+plot(v, v.fit3, pch = 19, main="Gaussian model")
 
 # Validation: reproduce the experimental values
 
@@ -1123,7 +1183,7 @@ fit.lasso <- glmnet(x,y, lambda = lambda.grid) # default: alpha=1 -> lasso
 par(mfrow=c(1,1))
 plot(fit.lasso, xvar='lambda', label=TRUE, col = rainbow(dim(x)[2]))
 labs <- gsub("_", " ", dimnames(x)[[2]])
-legend('topright', dimnames(x)[[2]], col =  rainbow(dim(x)[2]), lty=1, cex=0.7)
+legend('topright', dimnames(x)[[2]], col =  rainbow(dim(x)[2]), lty=1, cex=0.7, ncol=2)
 
 # Let's set lambda via cross validation
 cv.lasso <- cv.glmnet(x,y,lambda=lambda.grid) # default: 10-fold CV
@@ -1135,9 +1195,10 @@ plot(cv.lasso)
 
 coeffs.table <- coeff2dt(fitobject = cv.lasso, s = 'lambda.min')
 
-labs <- gsub("_", " ", coeffs.table$name[2:23])
-barplot(coeffs.table$coefficient[2:23], col = rainbow(dim(x)[2]))
-legend('topright', labs, col=rainbow(dim(x)[2]), lty=1, cex=0.6, ncol=2)
+labs <- gsub("_", " ", coeffs.table$name[1:11])
+barplot(coeffs.table$coefficient[1:11], col = rainbow(dim(x)[2]),
+        main = "Coefficients of selected model")
+legend('topright', labs, col=rainbow(dim(x)[2]), lty=1, cex=0.7, ncol=2)
 
 rm(x, y, fit.lasso, cv.lasso, bestlam.lasso, lambda.grid, labs)
 
@@ -1152,27 +1213,27 @@ rm(x, y, fit.lasso, cv.lasso, bestlam.lasso, lambda.grid, labs)
 # Cubic and square root transform: Too low
 
 # Z transform: Good
-fm2 <- lm(response2 ~ Air_passengers+
+fm2 <- lm(response2 ~ #Air_passengers+
             Hospital_beds+
-            Death_rate+
+            #Death_rate+
             Compensation_of_employees+
-            Deaths+
+            #Deaths+
             Early_leavers_from_ed.+
-            Employment_worked_hrs.+
-            Farm_labour_force+
+            #Employment_worked_hrs.+
+            #Farm_labour_force+
             Health_personnel+
             Respiratory_discharges+
             Life_expectancy+
             Longterm_care_beds+
-            Gross_domestic_product+
+            #Gross_domestic_product+
             Ed._participation+
             Population_density+
-            Population+
-            Pupils_enrolled+
-            GVA_growth+
-            Vehicles+
+            #Population+
+            #Pupils_enrolled+
+            #GVA_growth+
+            #Vehicles+
             Unemployment_rate+
-            Utilised_agricultural_area+
+            #Utilised_agricultural_area+
             NEET_rate, data=dataset)
 
 par(mfrow=c(2,2))
@@ -1221,7 +1282,7 @@ plot(variogram(residuals.fm2. ~ Latitude+Longitude, data=resid_w2,
 # lag width: width of distance intervals over which point pairs are averaged
 #            in bins (default = cutoff distance / 15)
 
-coff <- 12
+coff <- 18
 
 plot(variogram(residuals.fm2. ~ 1, data=resid_w2,
                cutoff = coff, width = coff/15), pch=19, main = paste('Sample Variogram, cutoff =',coff))
@@ -1243,24 +1304,161 @@ plot(v,pch=19)
 #vgm()
 ## 2) choose suitable initial values for partial sill, range & nugget
 v.fit1 <- fit.variogram(v, vgm(1, "Exp", 5, 5))
-v.fit2 <- fit.variogram(v, vgm(1, "Pen", 5, 5))
+v.fit2 <- fit.variogram(v, vgm(1, "Sph", 5, 5))
 v.fit3 <- fit.variogram(v, vgm(1, "Bes", 5, 5))
 
 ## 3) fit the model using one of the possible fitting criteria
 
 plot(v, v.fit1, pch = 19, main="Exponential model")
-plot(v, v.fit2, pch = 19, main="Pentaspherical model")
+plot(v, v.fit2, pch = 19, main="Spherical model")
 plot(v, v.fit3, pch = 19, main="Bessel model")
 
 # Validation: reproduce the experimental values
 
 ## TO DO
 
+v <- variogram(residuals.fm2. ~ 1, data=resid_w2,
+               cutoff = coff, width = coff/15, alpha = c(0, 45, 90, 135))
+plot(v, v.fit1, pch = 19, main="Exponential model")
+plot(v, v.fit2, pch = 19, main="Spherical model")
+plot(v, v.fit3, pch = 19, main="Bessel model")
+
 rm(resid_w2, v, v.fit1, v.fit2, v.fit3, coff)
 
 #### LISA ----
 
+regions <- merge(dataset[,c(1,27)], nuts_polyg[,c(1.7)], by="NUTS")[,c(1,3)]
+regions <- st_as_sf(regions)
 
+# Queen criterion defines neighbors as spatial units sharing a common edge/vertex
+queen_w <- queen_weights(regions)
+summary(queen_w)
+#weights_sparsity(queen_w)  # In summary
+#get_neighbors(queen_w, idx = 1)  # Gets neighbors of 1st element, can check for each
+#spatial_lag(queen_w, dataset['Cases_density_1'])  # Checks spatial lag of variable
+
+# Rook criterion defines neighbors by the existence of a common edge between two spatial units
+rook_w <- rook_weights(regions)
+summary(rook_w)  # Not very different from Queen
+
+# Distance-based: Get optimal critical distance to get neighbors
+dist_thres <- min_distthreshold(regions)  # Everyone has at least 1 neighbor
+dist_w <- distance_weights(regions, dist_thres)
+summary(dist_w)  # MANY neighbors
+
+# Distance-based: KNN
+knn_w <- knn_weights(regions, 5)
+summary(knn_w)
+
+par(mfrow=c(1,1))
+
+#### Local Moran: Wave 1 ----
+
+lisa_q <- local_moran(queen_w, dataset['Cases_density_1'])  # Default: 999 permutations
+#fdr <- lisa_fdr(lisa, 0.05)  # False Discovery Rate, can use as cutoff for clusters
+
+lisa_colors <- lisa_colors(lisa_q)
+lisa_labels <- lisa_labels(lisa_q)
+lisa_clusters <- lisa_clusters(lisa_q)
+
+plot(st_geometry(regions), 
+     col=sapply(lisa_clusters, function(x){return(lisa_colors[[x+1]])}), 
+     border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
+title(main = "Local Moran Map of 1st wave cases density\n Queen neigbors criterion")
+legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
+
+lisa_r <- local_moran(rook_w, dataset['Cases_density_1'])  # Default: 999 permutations
+#fdr <- lisa_fdr(lisa, 0.05)  # False Discovery Rate, can use as cutoff for clusters
+
+lisa_colors <- lisa_colors(lisa_r)
+lisa_labels <- lisa_labels(lisa_r)
+lisa_clusters <- lisa_clusters(lisa_r)
+
+plot(st_geometry(regions), 
+     col=sapply(lisa_clusters, function(x){return(lisa_colors[[x+1]])}), 
+     border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
+title(main = "Local Moran Map of 1st wave cases density\n Rook neigbors criterion")
+legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
+
+lisa_d <- local_moran(dist_w, dataset['Cases_density_1'])  # Default: 999 permutations
+#fdr <- lisa_fdr(lisa, 0.05)  # False Discovery Rate, can use as cutoff for clusters
+
+lisa_colors <- lisa_colors(lisa_d)
+lisa_labels <- lisa_labels(lisa_d)
+lisa_clusters <- lisa_clusters(lisa_d)
+
+plot(st_geometry(regions), 
+     col=sapply(lisa_clusters, function(x){return(lisa_colors[[x+1]])}), 
+     border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
+title(main = "Local Moran Map of 1st wave cases density\n Distance-based criterion")
+legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
+
+lisa_knn <- local_moran(knn_w, dataset['Cases_density_1'])  # Default: 999 permutations
+#fdr <- lisa_fdr(lisa, 0.05)  # False Discovery Rate, can use as cutoff for clusters
+
+lisa_colors <- lisa_colors(lisa_knn)
+lisa_labels <- lisa_labels(lisa_knn)
+lisa_clusters <- lisa_clusters(lisa_knn)
+
+plot(st_geometry(regions), 
+     col=sapply(lisa_clusters, function(x){return(lisa_colors[[x+1]])}), 
+     border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
+title(main = "Local Moran Map of 1st wave cases density\n KNN criterion (K=5)")
+legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
+
+#### Local Moran: Wave 2 ----
+
+lisa_q <- local_moran(queen_w, dataset['Cases_density_2'])  # Default: 999 permutations
+#fdr <- lisa_fdr(lisa, 0.05)  # False Discovery Rate, can use as cutoff for clusters
+
+lisa_colors <- lisa_colors(lisa_q)
+lisa_labels <- lisa_labels(lisa_q)
+lisa_clusters <- lisa_clusters(lisa_q)
+
+plot(st_geometry(regions), 
+     col=sapply(lisa_clusters, function(x){return(lisa_colors[[x+1]])}), 
+     border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
+title(main = "Local Moran Map of 2nd wave cases density\n Queen neigbors criterion")
+legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
+
+lisa_r <- local_moran(rook_w, dataset['Cases_density_2'])  # Default: 999 permutations
+#fdr <- lisa_fdr(lisa, 0.05)  # False Discovery Rate, can use as cutoff for clusters
+
+lisa_colors <- lisa_colors(lisa_r)
+lisa_labels <- lisa_labels(lisa_r)
+lisa_clusters <- lisa_clusters(lisa_r)
+
+plot(st_geometry(regions), 
+     col=sapply(lisa_clusters, function(x){return(lisa_colors[[x+1]])}), 
+     border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
+title(main = "Local Moran Map of 2nd wave cases density\n Rook neigbors criterion")
+legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
+
+lisa_d <- local_moran(dist_w, dataset['Cases_density_2'])  # Default: 999 permutations
+#fdr <- lisa_fdr(lisa, 0.05)  # False Discovery Rate, can use as cutoff for clusters
+
+lisa_colors <- lisa_colors(lisa_d)
+lisa_labels <- lisa_labels(lisa_d)
+lisa_clusters <- lisa_clusters(lisa_d)
+
+plot(st_geometry(regions), 
+     col=sapply(lisa_clusters, function(x){return(lisa_colors[[x+1]])}), 
+     border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
+title(main = "Local Moran Map of 2nd wave cases density\n Distance-based criterion")
+legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
+
+lisa_knn <- local_moran(knn_w, dataset['Cases_density_2'])  # Default: 999 permutations
+#fdr <- lisa_fdr(lisa, 0.05)  # False Discovery Rate, can use as cutoff for clusters
+
+lisa_colors <- lisa_colors(lisa_knn)
+lisa_labels <- lisa_labels(lisa_knn)
+lisa_clusters <- lisa_clusters(lisa_knn)
+
+plot(st_geometry(regions), 
+     col=sapply(lisa_clusters, function(x){return(lisa_colors[[x+1]])}), 
+     border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
+title(main = "Local Moran Map of 2nd wave cases density\n KNN criterion (K=5)")
+legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
 
 ## Extra ----
 #### Summary ----
