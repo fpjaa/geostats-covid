@@ -13,6 +13,8 @@ library(readr)  # Read tsv for national means
 library(openxlsx)  # Read excel for national totals
 library(dplyr)  # Data management
 library(geojsonR)  # Load geojson points
+library(sp)  # Data management
+library(gstat)  # Krigging
 
 #### Load data to complete ----
 
@@ -452,9 +454,6 @@ dataset$longitude <- as.numeric(dataset$longitude)
 
 #### Fill NAs: Trial by weighted mean by distance ----
 
-library(sp)
-library(gstat)
-
 # Validation
 errors <- data.frame(matrix(ncol = 24, nrow = 136))
 errors[,1] <- data1[,2]
@@ -467,7 +466,7 @@ for (r in 1:136){
       x_newdata <- dataset[r,c(c,28,29)]  # Value to validate
       coordinates(x_grid) <- c('latitude','longitude')
       coordinates(x_newdata) <- c('latitude','longitude')
-      replace <- idw0(as.formula(paste(colnames(dataset)[c],"~ latitude + longitude")), data = x_grid, newdata = x_newdata, idp = 2.0)
+      replace <- idw0(as.formula(paste(colnames(dataset)[c],"~ latitude+longitude")), data = x_grid, newdata = x_newdata, idp = 2.0)
       errors[r,c] <- (replace - dataset[r,c])/dataset[r,c]
     }
   }
@@ -829,13 +828,14 @@ plot(nuts_polyg$geometry, xlim=c(-20,30), ylim=c(25,60))
 my_colors <- c("white", heat.colors(5, alpha = 1))[c(1,6,5,4,3,2)]
 mybreaks <- c(0, 0.0000001, seq(from = min(dataset$Cases_density_1),
                                 to = max(dataset$Cases_density_1),
-                                length.out = 6))[c(1,3:8)]
+                                length.out = 5))
 
 nuts_polyg_tagged <- merge(nuts_polyg[,c(1,7)], dataset[,c(1,25,26)], by="NUTS", all=TRUE)
 nuts_polyg_tagged$Cases_density_1[is.na(nuts_polyg_tagged$Cases_density_1)] <- 0
 tags <- cut(nuts_polyg_tagged$Cases_density_1, mybreaks)
 
 mycolourscheme <- my_colors[findInterval(nuts_polyg_tagged$Cases_density_1, vec = mybreaks)]
+mycolourscheme[is.na(mycolourscheme)] <- my_colors[6]  # Spain region with max (somehow fails)
 
 # Wave 1 plot
 plot(nuts_polyg_tagged$geometry, col = mycolourscheme,
@@ -1327,8 +1327,8 @@ rm(resid_w2, v, v.fit1, v.fit2, v.fit3, coff)
 
 #### LISA ----
 
-regions <- merge(dataset[,c(1,27)], nuts_polyg[,c(1.7)], by="NUTS")[,c(1,3)]
-regions <- st_as_sf(regions)
+regions.raw <- merge(dataset[,c(1,27)], nuts_polyg[,c(1.7)], by="NUTS")[,c(1,3)]
+regions <- st_as_sf(regions.raw)
 
 # Queen criterion defines neighbors as spatial units sharing a common edge/vertex
 queen_w <- queen_weights(regions)
@@ -1357,12 +1357,15 @@ par(mfrow=c(1,1))
 lisa_q <- local_moran(queen_w, dataset['Cases_density_1'])  # Default: 999 permutations
 #fdr <- lisa_fdr(lisa, 0.05)  # False Discovery Rate, can use as cutoff for clusters
 
-lisa_colors <- lisa_colors(lisa_q)
-lisa_labels <- lisa_labels(lisa_q)
-lisa_clusters <- lisa_clusters(lisa_q)
+regions.raw$clusters <- lisa_clusters(lisa_q)
+regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
+regions$clusters <- replace(regions$clusters, is.na(regions$clusters), 5)
 
-plot(st_geometry(regions), 
-     col=sapply(lisa_clusters, function(x){return(lisa_colors[[x+1]])}), 
+lisa_colors <- lisa_colors(lisa_q)[c(1:5, 7, 6)]
+lisa_labels <- lisa_labels(lisa_q)
+
+plot(regions$geometry.x, 
+     col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
      border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
 title(main = "Local Moran Map of 1st wave cases density\n Queen neigbors criterion")
 legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
@@ -1370,12 +1373,15 @@ legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", 
 lisa_r <- local_moran(rook_w, dataset['Cases_density_1'])  # Default: 999 permutations
 #fdr <- lisa_fdr(lisa, 0.05)  # False Discovery Rate, can use as cutoff for clusters
 
-lisa_colors <- lisa_colors(lisa_r)
-lisa_labels <- lisa_labels(lisa_r)
-lisa_clusters <- lisa_clusters(lisa_r)
+regions.raw$clusters <- lisa_clusters(lisa_r)
+regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
+regions$clusters <- replace(regions$clusters, is.na(regions$clusters), 5)
 
-plot(st_geometry(regions), 
-     col=sapply(lisa_clusters, function(x){return(lisa_colors[[x+1]])}), 
+lisa_colors <- lisa_colors(lisa_r)[c(1:5, 7, 6)]
+lisa_labels <- lisa_labels(lisa_r)
+
+plot(regions$geometry.x, 
+     col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
      border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
 title(main = "Local Moran Map of 1st wave cases density\n Rook neigbors criterion")
 legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
@@ -1383,12 +1389,15 @@ legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", 
 lisa_d <- local_moran(dist_w, dataset['Cases_density_1'])  # Default: 999 permutations
 #fdr <- lisa_fdr(lisa, 0.05)  # False Discovery Rate, can use as cutoff for clusters
 
-lisa_colors <- lisa_colors(lisa_d)
-lisa_labels <- lisa_labels(lisa_d)
-lisa_clusters <- lisa_clusters(lisa_d)
+regions.raw$clusters <- lisa_clusters(lisa_d)
+regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
+regions$clusters <- replace(regions$clusters, is.na(regions$clusters), 5)
 
-plot(st_geometry(regions), 
-     col=sapply(lisa_clusters, function(x){return(lisa_colors[[x+1]])}), 
+lisa_colors <- lisa_colors(lisa_d)[c(1:5, 7, 6)]
+lisa_labels <- lisa_labels(lisa_d)
+
+plot(regions$geometry.x, 
+     col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
      border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
 title(main = "Local Moran Map of 1st wave cases density\n Distance-based criterion")
 legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
@@ -1396,12 +1405,15 @@ legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", 
 lisa_knn <- local_moran(knn_w, dataset['Cases_density_1'])  # Default: 999 permutations
 #fdr <- lisa_fdr(lisa, 0.05)  # False Discovery Rate, can use as cutoff for clusters
 
-lisa_colors <- lisa_colors(lisa_knn)
-lisa_labels <- lisa_labels(lisa_knn)
-lisa_clusters <- lisa_clusters(lisa_knn)
+regions.raw$clusters <- lisa_clusters(lisa_knn)
+regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
+regions$clusters <- replace(regions$clusters, is.na(regions$clusters), 5)
 
-plot(st_geometry(regions), 
-     col=sapply(lisa_clusters, function(x){return(lisa_colors[[x+1]])}), 
+lisa_colors <- lisa_colors(lisa_knn)[c(1:5, 7, 6)]
+lisa_labels <- lisa_labels(lisa_knn)
+
+plot(regions$geometry.x, 
+     col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
      border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
 title(main = "Local Moran Map of 1st wave cases density\n KNN criterion (K=5)")
 legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
@@ -1411,12 +1423,15 @@ legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", 
 lisa_q <- local_moran(queen_w, dataset['Cases_density_2'])  # Default: 999 permutations
 #fdr <- lisa_fdr(lisa, 0.05)  # False Discovery Rate, can use as cutoff for clusters
 
-lisa_colors <- lisa_colors(lisa_q)
-lisa_labels <- lisa_labels(lisa_q)
-lisa_clusters <- lisa_clusters(lisa_q)
+regions.raw$clusters <- lisa_clusters(lisa_q)
+regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
+regions$clusters <- replace(regions$clusters, is.na(regions$clusters), 5)
 
-plot(st_geometry(regions), 
-     col=sapply(lisa_clusters, function(x){return(lisa_colors[[x+1]])}), 
+lisa_colors <- lisa_colors(lisa_q)[c(1:5, 7, 6)]
+lisa_labels <- lisa_labels(lisa_q)
+
+plot(regions$geometry.x, 
+     col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
      border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
 title(main = "Local Moran Map of 2nd wave cases density\n Queen neigbors criterion")
 legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
@@ -1424,12 +1439,15 @@ legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", 
 lisa_r <- local_moran(rook_w, dataset['Cases_density_2'])  # Default: 999 permutations
 #fdr <- lisa_fdr(lisa, 0.05)  # False Discovery Rate, can use as cutoff for clusters
 
-lisa_colors <- lisa_colors(lisa_r)
-lisa_labels <- lisa_labels(lisa_r)
-lisa_clusters <- lisa_clusters(lisa_r)
+regions.raw$clusters <- lisa_clusters(lisa_r)
+regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
+regions$clusters <- replace(regions$clusters, is.na(regions$clusters), 5)
 
-plot(st_geometry(regions), 
-     col=sapply(lisa_clusters, function(x){return(lisa_colors[[x+1]])}), 
+lisa_colors <- lisa_colors(lisa_r)[c(1:5, 7, 6)]
+lisa_labels <- lisa_labels(lisa_r)
+
+plot(regions$geometry.x, 
+     col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
      border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
 title(main = "Local Moran Map of 2nd wave cases density\n Rook neigbors criterion")
 legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
@@ -1437,12 +1455,15 @@ legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", 
 lisa_d <- local_moran(dist_w, dataset['Cases_density_2'])  # Default: 999 permutations
 #fdr <- lisa_fdr(lisa, 0.05)  # False Discovery Rate, can use as cutoff for clusters
 
-lisa_colors <- lisa_colors(lisa_d)
-lisa_labels <- lisa_labels(lisa_d)
-lisa_clusters <- lisa_clusters(lisa_d)
+regions.raw$clusters <- lisa_clusters(lisa_d)
+regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
+regions$clusters <- replace(regions$clusters, is.na(regions$clusters), 5)
 
-plot(st_geometry(regions), 
-     col=sapply(lisa_clusters, function(x){return(lisa_colors[[x+1]])}), 
+lisa_colors <- lisa_colors(lisa_d)[c(1:5, 7, 6)]
+lisa_labels <- lisa_labels(lisa_d)
+
+plot(regions$geometry.x, 
+     col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
      border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
 title(main = "Local Moran Map of 2nd wave cases density\n Distance-based criterion")
 legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
@@ -1450,12 +1471,15 @@ legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", 
 lisa_knn <- local_moran(knn_w, dataset['Cases_density_2'])  # Default: 999 permutations
 #fdr <- lisa_fdr(lisa, 0.05)  # False Discovery Rate, can use as cutoff for clusters
 
-lisa_colors <- lisa_colors(lisa_knn)
-lisa_labels <- lisa_labels(lisa_knn)
-lisa_clusters <- lisa_clusters(lisa_knn)
+regions.raw$clusters <- lisa_clusters(lisa_knn)
+regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
+regions$clusters <- replace(regions$clusters, is.na(regions$clusters), 5)
 
-plot(st_geometry(regions), 
-     col=sapply(lisa_clusters, function(x){return(lisa_colors[[x+1]])}), 
+lisa_colors <- lisa_colors(lisa_knn)[c(1:5, 7, 6)]
+lisa_labels <- lisa_labels(lisa_knn)
+
+plot(regions$geometry.x, 
+     col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
      border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
 title(main = "Local Moran Map of 2nd wave cases density\n KNN criterion (K=5)")
 legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
