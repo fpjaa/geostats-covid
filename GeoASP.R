@@ -131,11 +131,11 @@ df_list <- list(air, avail, causes, compens, death, early, employ, farm, health,
                 hosp, life, longterm, nama, partic, popd, popul, pupils, regGVA,
                 stock, students, unempl, utilized, young)      
 #merge all data frames together
-means_by_country <- Reduce(function(x, y) merge(x, y, all=TRUE, by='geo'), df_list)
+country_nuts2 <- Reduce(function(x, y) merge(x, y, all=TRUE, by='geo'), df_list)
 
-means_by_country$country = substr(means_by_country$geo,1,2)
+country_nuts2$country = substr(country_nuts2$geo,1,2)
 
-means_by_country <- means_by_country[, -1] %>%
+means_by_country <- country_nuts2[, -1] %>%
   group_by(country) %>%
   summarise_all("mean", na.rm = TRUE)
 
@@ -373,46 +373,11 @@ for (i in 1:2010){
   locations[nrow(locations) + 1, ] <- new
 }
 
+# We will use all possible regions with data, not just the ASP data
+#colnames(country_nuts2)[1] <- "NUTS"
 dataset <- merge(data, locations, by = 'NUTS')
 
 lost <- anti_join(data, locations, by="NUTS")
-# FI13 not found -> Candidates FI1C3 FI1D3
-## Found in 2006
-# FI18 -> FI1D8
-## Found in 2006
-# FI1A not found
-## Found in 2006
-# FR23 not found -> Candidates FRC23 FRE23 FRF23 FRI23 FRK23
-## Found in 2013
-# FR24 not found -> Candidates FRF24 FRI24 FRK24
-## Found in 2013
-# FR26 not found -> Candidates FRI26 FRK26
-## Found in 2013
-# FR30 -> FRY30
-## Found in 2013
-# FR41 not found
-## Found in 2013
-# FR51 not found
-## Found in 2013
-# FR52 not found
-## Found in 2013
-# FR61 not found
-## Found in 2013
-# FR62 not found
-## Found in 2013
-# FR71 not found
-## Found in 2013
-# FR82 not found
-## Found in 2013
-# FRM0 not found
-# Found in 2021 and 2016
-# FRO not found -> Candidates FRB0 FRG0 FRH0 FRL0 FRM0
-## Found in 2013
-# FRY 1-5 not found
-## Found in 2021 and 2016
-# GRL not found -> Has NaN in case density
-# HR04 not found
-## Found in 2016 and 2013
 
 spdf <- FROM_GeoJson("NUTS_LB_2013_4326.geojson")
 
@@ -452,22 +417,24 @@ rm(fill, locations, lost, spdf, i, lat, lon, new, nuts)
 dataset$latitude <- as.numeric(dataset$latitude)
 dataset$longitude <- as.numeric(dataset$longitude)
 
+rm(country_nuts2)
+
 #### Fill NAs: Trial by weighted mean by distance ----
 
 # Validation
 errors <- data.frame(matrix(ncol = 24, nrow = 136))
 errors[,1] <- data1[,2]
 colnames(errors) <- colnames(data1)[3:26]
-for (r in 1:136){
+for (n in data$NUTS){
   for (c in 2:24){
-    if (!is.na(dataset[r,c]) && dataset[r,c] != 0){
-      x_grid <- dataset[-c(r),c(c,28,29)]  # Discard the value to evaluate
+    if (!is.na(data[data$NUTS==n,c]) && data[data$NUTS==n,c] != 0){
+      x_grid <- dataset[dataset$NUTS!=n,c(c,28,29)]  # Discard the value to evaluate
       x_grid <- x_grid[!is.na(x_grid[,1]),]  # Discard NAs
-      x_newdata <- dataset[r,c(c,28,29)]  # Value to validate
+      x_newdata <- dataset[dataset$NUTS==n,c(c,28,29)]  # Value to validate
       coordinates(x_grid) <- c('latitude','longitude')
       coordinates(x_newdata) <- c('latitude','longitude')
-      replace <- idw0(as.formula(paste(colnames(dataset)[c],"~ latitude+longitude")), data = x_grid, newdata = x_newdata, idp = 2.0)
-      errors[r,c] <- (replace - dataset[r,c])/dataset[r,c]
+      replace <- idw0(as.formula(paste(colnames(dataset)[c],"~1")), data = x_grid, newdata = x_newdata, idp = 1.0)
+      errors[errors$name==n,c] <- (replace - data[data$NUTS==n,c])/data[data$NUTS==n,c]
     }
   }
 }  # Takes a while
@@ -565,7 +532,7 @@ legend("bottomleft",legend = err[c(3,2,1),1],
 ## Density = pop
 ## Population doesn't need filling
 ## Pupils = pop
-## GVA = mean
+## GVA = dist
 ## Stock = pop -> Problematic (bit over 1 as range)
 ## Students = pop -> Problematic (bit over 1 as range)
 ## Unemployment = pop -> Problematic (bit over 1 as range)
@@ -573,9 +540,9 @@ legend("bottomleft",legend = err[c(3,2,1),1],
 ## NEETs = pop
 
 # Fill data: Using means by country
-## Available, causes of death, life expectancy, GVA
+## Available, causes of death, life expectancy
 data1 <- merge(data[,c(1,27)], means_by_country, by = 'country')
-for (i in c(3,4,12,19)){
+for (i in c(3,4,12)){
   data[,i] <- ifelse(is.na(data[,i]), data1[,i+1], data[,i])
 }
 # Fill data: Using weights by population
@@ -588,14 +555,19 @@ for (r in 1:136){
     }
   }
 }
-# Universal kriging: Long-term care beds
-c <- 13
-x_grid <- dataset[!is.na(dataset[,c]),c(c,28,29)]  # Discard NAs
-x_newdata <- dataset[is.na(dataset[,c]),c(c,28,29)]  # Values to replace
-coordinates(x_grid) <- c('latitude','longitude')
-coordinates(x_newdata) <- c('latitude','longitude')
-replace <- idw0(as.formula(paste(colnames(dataset)[c],"~ latitude + longitude")), data = x_grid, newdata = x_newdata, idp = 2.0)
-dataset[is.na(dataset[,c]),c] <- replace
+# Universal kriging: Long-term care beds, GVA
+for (n in data$NUTS){
+  for (c in c(13, 19)){
+    if (!is.na(data[data$NUTS==n,c]) && data[data$NUTS==n,c] != 0){
+      x_grid <- dataset[!is.na(dataset[,c]),c(c,28,29)]  # Discard NAs
+      x_newdata <- dataset[is.na(dataset[,c]),c(c,28,29)]  # Values to replace
+      coordinates(x_grid) <- c('latitude','longitude')
+      coordinates(x_newdata) <- c('latitude','longitude')
+      replace <- idw0(as.formula(paste(colnames(dataset)[c],"~1")), data = x_grid, newdata = x_newdata, idp = 1.0)
+      dataset[is.na(dataset[,c]),c] <- replace
+    }
+  }
+}  # Takes a while
 data[,13] <- dataset[,13]
 
 rm(data1, means_by_country, c, r, i, replace, x_grid, x_newdata)
@@ -665,9 +637,8 @@ barplot(height = missing$missing,
         cex.names = 0.6,
         horiz = TRUE)
 
-# Worst but unsolvable case: Discharges by resp diseases
+# Unsolvable cases:
 ## No national data in DE, error with other methods too high
-## In general same scenario for all features
 
 rm(countries, missing, country_data, err)
 
@@ -689,6 +660,43 @@ for (i in 1:2010){
 
 dataset <- merge(data, locations, by = 'NUTS')
 lost <- anti_join(data, locations, by="NUTS")
+# FI13 not found -> Candidates FI1C3 FI1D3
+## Found in 2006
+# FI18 -> FI1D8
+## Found in 2006
+# FI1A not found
+## Found in 2006
+# FR23 not found -> Candidates FRC23 FRE23 FRF23 FRI23 FRK23
+## Found in 2013
+# FR24 not found -> Candidates FRF24 FRI24 FRK24
+## Found in 2013
+# FR26 not found -> Candidates FRI26 FRK26
+## Found in 2013
+# FR30 -> FRY30
+## Found in 2013
+# FR41 not found
+## Found in 2013
+# FR51 not found
+## Found in 2013
+# FR52 not found
+## Found in 2013
+# FR61 not found
+## Found in 2013
+# FR62 not found
+## Found in 2013
+# FR71 not found
+## Found in 2013
+# FR82 not found
+## Found in 2013
+# FRM0 not found
+# Found in 2021 and 2016
+# FRO not found -> Candidates FRB0 FRG0 FRH0 FRL0 FRM0
+## Found in 2013
+# FRY 1-5 not found
+## Found in 2021 and 2016
+# GRL not found -> Has NaN in case density
+# HR04 not found
+## Found in 2016 and 2013
 
 spdf <- FROM_GeoJson("NUTS_LB_2013_4326.geojson")
 locations <- data.frame(matrix(ncol = 3, nrow = 0))
@@ -1509,36 +1517,3 @@ resumen <- cbind(row.names(resumen), resumen)
 write_csv(resumen, 'summary.csv')
 
 rm(resumen)
-
-#### Map plots (deprecated) ----
-
-library(plotly)
-library(ggplot2)
-
-g <- list(
-  scope = 'europe',
-  resolution = 50,
-  showland = TRUE,
-  landcolor = toRGB("gray85"),
-  showframe = TRUE,
-  showcountries = T,
-  countrycolor = toRGB("gray50")
-)
-
-fig <- plot_geo(dataset, sizes = c(1, 126))
-fig <- fig %>% add_markers(
-  x = ~latitude, y = ~longitude, size=~population_nuts2, color = ~cases_density_first_wave, hoverinfo = "text",
-  text = ~paste(dataset$NUTS)
-)
-fig <- fig %>% layout(title = 'Europe regions',
-                      geo = g) %>% colorbar(title = "Cases density<br />First wave")
-fig
-
-fig <- plot_geo(dataset, sizes = c(1, 126))
-fig <- fig %>% add_markers(
-  x = ~latitude, y = ~longitude, size=~population_nuts2, color = ~cases_density_second_wave, hoverinfo = "text",
-  text = ~paste(dataset$NUTS)
-)
-fig <- fig %>% layout(title = 'Europe regions',
-                      geo = g) %>% colorbar(title = "Cases density<br />Second wave")
-fig
