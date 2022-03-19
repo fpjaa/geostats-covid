@@ -449,9 +449,9 @@ err[9,2:24] <- apply(errors[,2:24], 2, my.max)
 
 #dataset[is.na(dataset[,2]),2] <- air_fill
 
-#### Fill NAs ----
+#### Before filling ----
 
-# Before filling: Check NAs
+# Previous NAs
 
 missing <- is.na(data[, -c(1, 25, 26)])
 missing <- rowSums(missing)
@@ -508,11 +508,15 @@ barplot(height = missing$missing,
 
 rm(errors, my.max, my.min)
 
+# Compare errors
+
 plot(1:23, log(err[3,2:24]), ylab="Log error range", xlab="Feature", main="Approximation method comparison", type="p")
 points(1:23, log(err[2,2:24]), col="red")
 points(1:23, log(err[1,2:24]), col="blue")
 legend("bottomleft",legend = err[c(3,2,1),1],
        col = c("black", "red", "blue"), pch = 1, cex = 0.8)
+
+#### Fill NAs ----
 
 # Winner by feature
 ## Air = pop -> Problematic (over 1 as range) -> Shouldn't refill
@@ -540,9 +544,9 @@ legend("bottomleft",legend = err[c(3,2,1),1],
 ## NEETs = pop
 
 # Fill data: Using means by country
-## Available, causes of death, life expectancy
+## causes of death, life expectancy
 data1 <- merge(data[,c(1,27)], means_by_country, by = 'country')
-for (i in c(3,4,12)){
+for (i in c(4,12)){
   data[,i] <- ifelse(is.na(data[,i]), data1[,i+1], data[,i])
 }
 # Fill data: Using weights by population
@@ -555,22 +559,20 @@ for (r in 1:136){
     }
   }
 }
-# Universal kriging: Long-term care beds, GVA
+# Universal kriging: Available, long-term care beds, GVA
 for (n in data$NUTS){
-  for (c in c(13, 19)){
-    if (!is.na(data[data$NUTS==n,c]) && data[data$NUTS==n,c] != 0){
-      x_grid <- dataset[!is.na(dataset[,c]),c(c,28,29)]  # Discard NAs
-      x_newdata <- dataset[is.na(dataset[,c]),c(c,28,29)]  # Values to replace
-      coordinates(x_grid) <- c('latitude','longitude')
-      coordinates(x_newdata) <- c('latitude','longitude')
-      replace <- idw0(as.formula(paste(colnames(dataset)[c],"~1")), data = x_grid, newdata = x_newdata, idp = 1.0)
-      dataset[is.na(dataset[,c]),c] <- replace
-    }
+  for (c in c(3, 13, 19)){
+    x_grid <- dataset[!is.na(dataset[,c]),c(c,28,29)]  # Discard NAs
+    x_newdata <- dataset[is.na(dataset[,c]),c(c,28,29)]  # Values to replace
+    coordinates(x_grid) <- c('latitude','longitude')
+    coordinates(x_newdata) <- c('latitude','longitude')
+    replace <- idw0(as.formula(paste(colnames(dataset)[c],"~1")), data = x_grid, newdata = x_newdata, idp = 1.0)
+    data[is.na(data[,c]),c] <- replace
   }
 }  # Takes a while
-data[,13] <- dataset[,13]
+#data[,c(13, 19)] <- dataset[,c(13, 19)]
 
-rm(data1, means_by_country, c, r, i, replace, x_grid, x_newdata)
+rm(data1, means_by_country, c, r, i, replace, x_grid, x_newdata, n)
 
 # Fix data fill that is supposed to be integer
 ## Deaths (ok), population (ok), pupils (to do), students (to do),
