@@ -835,30 +835,28 @@ par(mar=c(2,4,2,4)+0.1)  # BLTR
 plot(nuts_polyg$geometry, xlim=c(-20,30), ylim=c(25,60))
 
 # Waves 1 and 2 initial configuration
-my_colors <- c("white", heat.colors(5, alpha = 1))[c(1,6,5,4,3,2)]
-mybreaks <- c(0, 0.0000001, seq(from = min(dataset$Cases_density_1),
-                                to = max(dataset$Cases_density_1),
-                                length.out = 5))
-
+my_colors <- c(heat.colors(6, alpha = 1))[c(6,5,4,3,2)]
 nuts_polyg_tagged <- merge(nuts_polyg[,c(1,7)], dataset[,c(1,25,26)], by="NUTS", all=TRUE)
-nuts_polyg_tagged$Cases_density_1[is.na(nuts_polyg_tagged$Cases_density_1)] <- 0
+
+mybreaks <- seq(from = min(dataset$Cases_density_1)-0.000001,
+                to = max(dataset$Cases_density_1)+0.00001,
+                length.out = 6)
+
 tags <- cut(nuts_polyg_tagged$Cases_density_1, mybreaks)
 
-mycolourscheme <- my_colors[findInterval(nuts_polyg_tagged$Cases_density_1, vec = mybreaks)]
-mycolourscheme[is.na(mycolourscheme)] <- my_colors[6]  # Spain region with max (somehow fails)
+nuts_polyg_tagged$mycolourscheme <- my_colors[findInterval(nuts_polyg_tagged$Cases_density_1, vec = mybreaks)]
 
 # Wave 1 plot
-plot(nuts_polyg_tagged$geometry, col = mycolourscheme,
+plot(nuts_polyg_tagged$geometry, col = nuts_polyg_tagged$mycolourscheme,
      xlim=c(-18,20), ylim=c(25,63))
 legend("topleft", legend = levels(tags), col = my_colors, pch=1, cex=0.9,
        title="Cases density (wave 1)")
 
 # Wave 2 settings counting on work from wave 1
-mybreaks <- c(0, 0.0000001, seq(from = min(dataset$Cases_density_2),
-                                to = max(dataset$Cases_density_2),
-                                length.out = 6))[c(1:2,4:8)]
+mybreaks <- seq(from = min(dataset$Cases_density_2)-0.0000001,
+                to = max(dataset$Cases_density_2)+0.00001,
+                length.out = 6)
 
-nuts_polyg_tagged$Cases_density_2[is.na(nuts_polyg_tagged$Cases_density_2)] <- 0
 tags <- cut(nuts_polyg_tagged$Cases_density_2, mybreaks)
 
 mycolourscheme <- my_colors[findInterval(nuts_polyg_tagged$Cases_density_2, vec = mybreaks)]
@@ -977,7 +975,7 @@ x <- model.matrix(response1 ~ Air_passengers+
                     Unemployment_rate+
                     Utilised_agricultural_area+
                     NEET_rate, data=dataset)[,-1]
-# Currently 74 valid rows
+# Currently 87 valid rows
 
 # Build the vector of response
 y <- dataset[row.names(x),]$response1
@@ -987,7 +985,7 @@ par(mar=c(4,6,4,6)+0.1)  # BLTR
 boxplot(y)
 
 # Let's set a grid of candidate lambda's for the estimate
-lambda.grid <- 10^seq(5,-3,length=100)
+lambda.grid <- 10^seq(2,-3,length=100)
 fit.lasso <- glmnet(x,y, lambda = lambda.grid) # default: alpha=1 -> lasso
 
 par(mfrow=c(1,1))
@@ -1004,13 +1002,15 @@ bestlam.lasso
 plot(cv.lasso)
 
 coeffs.table <- coeff2dt(fitobject = cv.lasso, s = 'lambda.min')
+filter <- coeffs.table[abs(coeffs.table$coefficient)<0.0001,]  # Under 10-4
+choice <- coeffs.table[abs(coeffs.table$coefficient)>0.0001,]
+n <- 9
 
-labs <- gsub("_", " ", coeffs.table$name[1:15])
-barplot(coeffs.table$coefficient[1:15], col = rainbow(dim(x)[2]),
-main = "Coefficients of selected model")
-legend('topright', labs, col =  rainbow(dim(x)[2]), lty=1, cex=0.8, ncol=2)
+barplot(choice$coefficient[1:n], col = rainbow(n), main = "Filtered coefficients of selected model")
+labs <- gsub("_", " ", choice$name[1:n])
+legend('topright', labs, col =  rainbow(n), lty=1, cex=0.8, ncol=2)
 
-rm(x, y, fit.lasso, cv.lasso, bestlam.lasso, lambda.grid, labs)
+rm(x, y, fit.lasso, cv.lasso, bestlam.lasso, lambda.grid, labs, filter, coeffs.table, n)
 
 #### Wave 1 residuals -----------------
 
@@ -1021,15 +1021,15 @@ rm(x, y, fit.lasso, cv.lasso, bestlam.lasso, lambda.grid, labs)
 
 # Logit transform
 fm1 <- lm(response1 ~ #Air_passengers+
-            #Hospital_beds+
+            Hospital_beds+
             Death_rate+
-            Compensation_of_employees+
+            #Compensation_of_employees+
             #Deaths+
             Early_leavers_from_ed.+
-            Employment_worked_hrs.+
+            #Employment_worked_hrs.+
             #Farm_labour_force+
-            Health_personnel+
-            Respiratory_discharges+
+            #Health_personnel+
+            #Respiratory_discharges+
             Life_expectancy+
             Longterm_care_beds+
             #Gross_domestic_product+
@@ -1038,11 +1038,19 @@ fm1 <- lm(response1 ~ #Air_passengers+
             #Population+
             #Pupils_enrolled+
             GVA_growth+
-            Vehicles+
+            #Vehicles+
             #Tertiary_ed._students+
-            Unemployment_rate+
-            Utilised_agricultural_area+
+            #Unemployment_rate+
+            #Utilised_agricultural_area+
             NEET_rate, data=dataset)
+
+coeffs <- sort(fm1[["coefficients"]], decreasing = TRUE)
+n <- 9
+par(mfrow=c(1,1))
+par(mar=c(4,6,4,6)+0.1)  # BLTR
+barplot(as.numeric(coeffs)[1:n], col = rainbow(n), main = "Coefficients of selected model")
+labs <- gsub("_", " ", names(coeffs)[1:n])
+legend('topright', labs, col =  rainbow(n), lty=1, cex=0.8, ncol=2)
 
 par(mfrow=c(2,2))
 par(mar=c(4,6,4,2)+0.5)  # BLTR
@@ -1051,12 +1059,36 @@ plot(fm1)
 shapiro.test(residuals(fm1))
 
 resid_w1 <- data.frame(residuals(fm1))
-resid_w1 <- merge(dataset[row.names(resid_w1), c('Latitude', 'Longitude')], resid_w1, by=0)
+resid_w1 <- merge(dataset[row.names(resid_w1), c('NUTS', 'Latitude', 'Longitude')], resid_w1, by=0)
+
+# Map plot
+# Waves 1 and 2 initial configuration
+mybreaks <- c(seq(from = min(resid_w1$residuals.fm1.),
+                  to = max(resid_w1$residuals.fm1.),
+                  length.out = 5))
+my_colors <- c('#0000ff', '#6495ed', '#f08080', '#ff0000')
+
+nuts_polyg_tagged <- merge(nuts_polyg[,c(1,7)], resid_w1[,c(2,5)], by="NUTS", all=TRUE)
+tags <- cut(nuts_polyg_tagged$residuals.fm1., mybreaks)
+mycolourscheme <- my_colors[findInterval(nuts_polyg_tagged$residuals.fm1., vec = mybreaks)]
+
+# Wave 1 plot
+par(mfrow=c(1,1))
+par(mar=c(2,4,2,4)+0.1)  # BLTR
+plot(nuts_polyg_tagged$geometry, col = mycolourscheme,
+     xlim=c(-18,20), ylim=c(25,63))
+legend("topleft", legend = levels(tags), col = my_colors, pch=1, cex=0.9,
+       title="Residuals (wave 1)")
+
 resid_w1$Latitude <- as.numeric(resid_w1$Latitude)
 resid_w1$Longitude <- as.numeric(resid_w1$Longitude)
 resid_w1$residuals.fm1. <- as.numeric(resid_w1$residuals.fm1.)
-resid_w1$Row.names <- as.numeric(resid_w1$Row.names)
 
+# Extract data in case of anisotropy
+setwd('/home/fpjaa/Documents/GitHub/geostats-covid/')
+write.csv(resid_w1[, c('Latitude', 'Longitude', 'residuals.fm1.')], 'residuals_w1.csv')
+
+resid_w1$Row.names <- as.numeric(resid_w1$Row.names)
 coordinates(resid_w1) <- c('Latitude','Longitude')
 
 # sample variogram (binned estimator)
@@ -1099,17 +1131,30 @@ plot(variogram(residuals.fm1. ~ 1, data=resid_w1,
 plot(variogram(residuals.fm1. ~ Latitude+Longitude, data=resid_w1,
                cutoff = coff, width = coff/15), pch=19, main = paste('Residual Variogram, cutoff =',coff))
 
-rm(fm1, coeffs.table, samp_vgm, res_vgm)
+rm(fm1, choice, coeffs, n, samp_vgm, res_vgm,
+   nuts_polyg_tagged, labs, my_colors, mybreaks, mycolourscheme, tags)
 
 #### Variogram modeling ----
 
+setwd('/home/fpjaa/Documents/GitHub/geostats-covid/')
+resid_w1 <- read.csv("residuals_w1.csv", header=TRUE, stringsAsFactors=FALSE)
+resid_w1$Latitude <- as.numeric(resid_w1$Latitude)
+resid_w1$Longitude <- as.numeric(resid_w1$Longitude)
+resid_w1$residuals.fm1. <- as.numeric(resid_w1$residuals.fm1.)
+coordinates(resid_w1) <- c('Latitude','Longitude')
+
+coff <- 10
+
 v <- variogram(residuals.fm1. ~ 1, data=resid_w1,
-               cutoff = coff, width = coff/15)
+               cutoff = coff, width = coff/15, map = TRUE)
 
 ## weighted least squares fitting a variogram model to the sample variogram
 ## STEPS:
 ## 1) choose a suitable model
-plot(v,pch=19)
+plot(v, multipanel = TRUE, plot.numbers = TRUE)
+
+v <- variogram(residuals.fm1. ~ 1, data=resid_w1,
+               cutoff = coff, width = coff/15)
 #vgm()
 ## 2) choose suitable initial values for partial sill, range & nugget
 v.fit1 <- fit.variogram(v, vgm(1, "Exp", 5, 5))
@@ -1126,10 +1171,7 @@ plot(v, v.fit3, pch = 19, main="Gaussian model")
 
 v <- variogram(residuals.fm1. ~ 1, data=resid_w1,
                cutoff = coff, width = coff/15, alpha = c(0, 45, 90, 135))
-plot(v,pch=19)
-v.fit1 <- fit.variogram(v, vgm(1, "Exp", 5, 5))
-v.fit2 <- fit.variogram(v, vgm(1, "Sph", 5, 5))
-v.fit3 <- fit.variogram(v, vgm(1, "Gau", 5, 5))
+
 plot(v, v.fit1, pch = 19, main="Exponential model")
 plot(v, v.fit2, pch = 19, main="Spherical model")
 plot(v, v.fit3, pch = 19, main="Gaussian model")
@@ -1187,7 +1229,7 @@ par(mfrow = c(1,1))
 boxplot(y)
 
 # Let's set a grid of candidate lambda's for the estimate
-lambda.grid <- 10^seq(5,-3,length=100)
+lambda.grid <- 10^seq(2,-3,length=100)
 fit.lasso <- glmnet(x,y, lambda = lambda.grid) # default: alpha=1 -> lasso
 
 par(mfrow=c(1,1))
@@ -1204,13 +1246,15 @@ bestlam.lasso
 plot(cv.lasso)
 
 coeffs.table <- coeff2dt(fitobject = cv.lasso, s = 'lambda.min')
+filter <- coeffs.table[abs(coeffs.table$coefficient)<0.0001,]  # Under 10-4
+choice <- coeffs.table[abs(coeffs.table$coefficient)>0.0001,]
+n <- 7
 
-labs <- gsub("_", " ", coeffs.table$name[1:11])
-barplot(coeffs.table$coefficient[1:11], col = rainbow(dim(x)[2]),
-        main = "Coefficients of selected model")
-legend('topright', labs, col=rainbow(dim(x)[2]), lty=1, cex=0.7, ncol=2)
+barplot(choice$coefficient[1:n], col = rainbow(n), main = "Filtered coefficients of selected model")
+labs <- gsub("_", " ", choice$name[1:n])
+legend('topright', labs, col =  rainbow(n), lty=1, cex=0.8, ncol=2)
 
-rm(x, y, fit.lasso, cv.lasso, bestlam.lasso, lambda.grid, labs)
+rm(x, y, fit.lasso, cv.lasso, bestlam.lasso, lambda.grid, labs, filter, coeffs.table, n)
 
 #### Wave 2 residuals -----------------
 
@@ -1225,39 +1269,72 @@ rm(x, y, fit.lasso, cv.lasso, bestlam.lasso, lambda.grid, labs)
 # Z transform: Good
 fm2 <- lm(response2 ~ #Air_passengers+
             Hospital_beds+
-            #Death_rate+
-            Compensation_of_employees+
+            Death_rate+
+            #Compensation_of_employees+
             #Deaths+
-            Early_leavers_from_ed.+
+            #Early_leavers_from_ed.+
             #Employment_worked_hrs.+
             #Farm_labour_force+
-            Health_personnel+
-            Respiratory_discharges+
+            #Health_personnel+
+            #Respiratory_discharges+
             Life_expectancy+
-            Longterm_care_beds+
+            #Longterm_care_beds+
             #Gross_domestic_product+
             Ed._participation+
             Population_density+
             #Population+
             #Pupils_enrolled+
-            #GVA_growth+
+            GVA_growth+
             #Vehicles+
-            Unemployment_rate+
+            #Unemployment_rate+
             #Utilised_agricultural_area+
             NEET_rate, data=dataset)
 
+coeffs <- sort(fm2[["coefficients"]], decreasing = TRUE)
+n <- 7
+par(mfrow=c(1,1))
+par(mar=c(4,6,4,6)+0.1)  # BLTR
+barplot(as.numeric(coeffs)[1:n], col = rainbow(n), main = "Coefficients of selected model")
+labs <- gsub("_", " ", names(coeffs)[1:n])
+legend('topright', labs, col =  rainbow(n), lty=1, cex=0.8, ncol=2)
+
 par(mfrow=c(2,2))
+par(mar=c(4,6,4,2)+0.5)  # BLTR
 plot(fm2)
 
 shapiro.test(residuals(fm2))
 
 resid_w2 <- data.frame(residuals(fm2))
-resid_w2 <- merge(dataset[row.names(resid_w2), c('Latitude', 'Longitude')], resid_w2, by=0)
+resid_w2 <- merge(dataset[row.names(resid_w2), c('NUTS', 'Latitude', 'Longitude')], resid_w2, by=0)
+
+# Map plot
+# Waves 1 and 2 initial configuration
+mybreaks <- c(seq(from = min(resid_w2$residuals.fm2.),
+                  to = max(resid_w2$residuals.fm2.),
+                  length.out = 5))
+my_colors <- c('#0000ff', '#6495ed', '#f08080', '#ff0000')
+
+nuts_polyg_tagged <- merge(nuts_polyg[,c(1,7)], resid_w2[,c(2,5)], by="NUTS", all=TRUE)
+tags <- cut(nuts_polyg_tagged$residuals.fm2., mybreaks)
+mycolourscheme <- my_colors[findInterval(nuts_polyg_tagged$residuals.fm2., vec = mybreaks)]
+
+# Wave 2 plot
+par(mfrow=c(1,1))
+par(mar=c(2,4,2,4)+0.1)  # BLTR
+plot(nuts_polyg_tagged$geometry, col = mycolourscheme,
+     xlim=c(-18,20), ylim=c(25,63))
+legend("topleft", legend = levels(tags), col = my_colors, pch=1, cex=0.9,
+       title="Residuals (wave 2)")
+
 resid_w2$Latitude <- as.numeric(resid_w2$Latitude)
 resid_w2$Longitude <- as.numeric(resid_w2$Longitude)
 resid_w2$residuals.fm2. <- as.numeric(resid_w2$residuals.fm2.)
-resid_w2$Row.names <- as.numeric(resid_w2$Row.names)
 
+# Extract data in case of anisotropy
+setwd('/home/fpjaa/Documents/GitHub/geostats-covid/')
+write.csv(resid_w2[, c('Latitude', 'Longitude', 'residuals.fm2.')], 'residuals_w2.csv')
+
+resid_w2$Row.names <- as.numeric(resid_w2$Row.names)
 coordinates(resid_w2) <- c('Latitude','Longitude')
 
 # sample variogram (binned estimator)
@@ -1292,7 +1369,7 @@ plot(variogram(residuals.fm2. ~ Latitude+Longitude, data=resid_w2,
 # lag width: width of distance intervals over which point pairs are averaged
 #            in bins (default = cutoff distance / 15)
 
-coff <- 18
+coff <- 10
 
 plot(variogram(residuals.fm2. ~ 1, data=resid_w2,
                cutoff = coff, width = coff/15), pch=19, main = paste('Sample Variogram, cutoff =',coff))
@@ -1300,22 +1377,37 @@ plot(variogram(residuals.fm2. ~ 1, data=resid_w2,
 plot(variogram(residuals.fm2. ~ Latitude+Longitude, data=resid_w2,
                cutoff = coff, width = coff/15), pch=19, main = paste('Residual Variogram, cutoff =',coff))
 
-rm(fm2, coeffs.table, samp_vgm, res_vgm, coeff2dt)
+rm(fm2, choice, coeffs, n, labs, coeff2dt,
+   nuts_polyg_tagged, samp_vgm, res_vgm)
 
 #### Variogram modeling ----
 
+setwd('/home/fpjaa/Documents/GitHub/geostats-covid/')
+resid_w2 <- read.csv("residuals_w2.csv", header=TRUE, stringsAsFactors=FALSE)
+resid_w2$Latitude <- as.numeric(resid_w2$Latitude)
+resid_w2$Longitude <- as.numeric(resid_w2$Longitude)
+resid_w2$residuals.fm2. <- as.numeric(resid_w2$residuals.fm2.)
+coordinates(resid_w2) <- c('Latitude','Longitude')
+
+coff <- 10
+
 v <- variogram(residuals.fm2. ~ 1, data=resid_w2,
-               cutoff = coff, width = coff/15)
+               cutoff = coff, width = coff/15, map = TRUE)
 
 ## weighted least squares fitting a variogram model to the sample variogram
 ## STEPS:
 ## 1) choose a suitable model
-plot(v,pch=19)
+plot(v, multipanel = TRUE, plot.numbers = TRUE)
+## weighted least squares fitting a variogram model to the sample variogram
+## STEPS:
+## 1) choose a suitable model
 #vgm()
+v <- variogram(residuals.fm2. ~ 1, data=resid_w2,
+               cutoff = coff, width = coff/15)
 ## 2) choose suitable initial values for partial sill, range & nugget
 v.fit1 <- fit.variogram(v, vgm(1, "Exp", 5, 5))
 v.fit2 <- fit.variogram(v, vgm(1, "Sph", 5, 5))
-v.fit3 <- fit.variogram(v, vgm(1, "Bes", 5, 5))
+v.fit3 <- fit.variogram(v, vgm(1, "Gau", 5, 5))
 
 ## 3) fit the model using one of the possible fitting criteria
 
@@ -1331,7 +1423,7 @@ v <- variogram(residuals.fm2. ~ 1, data=resid_w2,
                cutoff = coff, width = coff/15, alpha = c(0, 45, 90, 135))
 plot(v, v.fit1, pch = 19, main="Exponential model")
 plot(v, v.fit2, pch = 19, main="Spherical model")
-plot(v, v.fit3, pch = 19, main="Bessel model")
+plot(v, v.fit3, pch = 19, main="Gaussian model")
 
 rm(resid_w2, v, v.fit1, v.fit2, v.fit3, coff)
 
