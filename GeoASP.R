@@ -828,6 +828,8 @@ lost <- anti_join(lost, nuts_polyg1, by="NUTS")
 
 rm(lost, nuts_polyg1)
 
+setwd('/home/fpjaa/Documents/GitHub/geostats-covid/')
+
 #### Map plots ----
 
 # Uncoloured map
@@ -1002,9 +1004,9 @@ bestlam.lasso
 plot(cv.lasso)
 
 coeffs.table <- coeff2dt(fitobject = cv.lasso, s = 'lambda.min')
-filter <- coeffs.table[abs(coeffs.table$coefficient)<0.0001,]  # Under 10-4
-choice <- coeffs.table[abs(coeffs.table$coefficient)>0.0001,]
-n <- 9
+filter <- coeffs.table[abs(coeffs.table$coefficient)<0.000001,]  # Under 10-6
+choice <- coeffs.table[abs(coeffs.table$coefficient)>0.000001,]
+n <- 19
 
 barplot(choice$coefficient[1:n], col = rainbow(n), main = "Filtered coefficients of selected model")
 labs <- gsub("_", " ", choice$name[1:n])
@@ -1020,32 +1022,32 @@ rm(x, y, fit.lasso, cv.lasso, bestlam.lasso, lambda.grid, labs, filter, coeffs.t
 # Assumption: Eps ~ N(0, sigma^2)
 
 # Logit transform
-fm1 <- lm(response1 ~ #Air_passengers+
+fm1 <- lm(response1 ~ Air_passengers+
             Hospital_beds+
             Death_rate+
-            #Compensation_of_employees+
-            #Deaths+
+            Compensation_of_employees+
+            Deaths+
             Early_leavers_from_ed.+
             #Employment_worked_hrs.+
-            #Farm_labour_force+
-            #Health_personnel+
-            #Respiratory_discharges+
+            Farm_labour_force+
+            Health_personnel+
+            Respiratory_discharges+
             Life_expectancy+
             Longterm_care_beds+
-            #Gross_domestic_product+
+            Gross_domestic_product+
             Ed._participation+
             Population_density+
             #Population+
-            #Pupils_enrolled+
+            Pupils_enrolled+
             GVA_growth+
             #Vehicles+
-            #Tertiary_ed._students+
-            #Unemployment_rate+
+            Tertiary_ed._students+
+            Unemployment_rate+
             #Utilised_agricultural_area+
             NEET_rate, data=dataset)
 
 coeffs <- sort(fm1[["coefficients"]], decreasing = TRUE)
-n <- 9
+n <- 19
 par(mfrow=c(1,1))
 par(mar=c(4,6,4,6)+0.1)  # BLTR
 barplot(as.numeric(coeffs)[1:n], col = rainbow(n), main = "Coefficients of selected model")
@@ -1123,7 +1125,7 @@ plot(variogram(residuals.fm1.~Latitude+Longitude, data=resid_w1,
 # lag width: width of distance intervals over which point pairs are averaged
 #            in bins (default = cutoff distance / 15)
 
-coff <- 10
+coff <- 12
 
 plot(variogram(residuals.fm1. ~ 1, data=resid_w1,
                cutoff = coff, width = coff/15), pch=19, main = paste('Sample Variogram, cutoff =',coff))
@@ -1143,7 +1145,7 @@ resid_w1$Longitude <- as.numeric(resid_w1$Longitude)
 resid_w1$residuals.fm1. <- as.numeric(resid_w1$residuals.fm1.)
 coordinates(resid_w1) <- c('Latitude','Longitude')
 
-coff <- 10
+coff <- 12
 
 v <- variogram(residuals.fm1. ~ 1, data=resid_w1,
                cutoff = coff, width = coff/15, map = TRUE)
@@ -1157,24 +1159,24 @@ v <- variogram(residuals.fm1. ~ 1, data=resid_w1,
                cutoff = coff, width = coff/15)
 #vgm()
 ## 2) choose suitable initial values for partial sill, range & nugget
-v.fit1 <- fit.variogram(v, vgm(1, "Exp", 5, 5))
-v.fit2 <- fit.variogram(v, vgm(1, "Sph", 5, 5))
-v.fit3 <- fit.variogram(v, vgm(1, "Gau", 5, 5))
+v.fit1 <- fit.variogram(v, vgm(1, "Nug", 0, 0.1))
+v.fit2 <- fit.variogram(v, vgm(1, "Exp", 5, 5))
+v.fit3 <- fit.variogram(v, vgm(1, "Bes", 5, 5))
 
 ## 3) fit the model using one of the possible fitting criteria
 
-plot(v, v.fit1, pch = 19, main="Exponential model")
-plot(v, v.fit2, pch = 19, main="Spherical model")
-plot(v, v.fit3, pch = 19, main="Gaussian model")
+plot(v, v.fit1, pch = 19, main="Pure Nugget model")
+plot(v, v.fit2, pch = 19, main="Exponential model")
+plot(v, v.fit3, pch = 19, main="Bessel model")
 
 ## Problem: Anisotropy: alpha = 0, 45, 90, 135
 
 v <- variogram(residuals.fm1. ~ 1, data=resid_w1,
                cutoff = coff, width = coff/15, alpha = c(0, 45, 90, 135))
 
-plot(v, v.fit1, pch = 19, main="Exponential model")
-plot(v, v.fit2, pch = 19, main="Spherical model")
-plot(v, v.fit3, pch = 19, main="Gaussian model")
+plot(v, v.fit1, pch = 19, main="Pure Nugget model")
+plot(v, v.fit2, pch = 19, main="Exponential model")
+plot(v, v.fit3, pch = 19, main="Bessel model")
 
 # Validation: reproduce the experimental values
 
@@ -1246,9 +1248,9 @@ bestlam.lasso
 plot(cv.lasso)
 
 coeffs.table <- coeff2dt(fitobject = cv.lasso, s = 'lambda.min')
-filter <- coeffs.table[abs(coeffs.table$coefficient)<0.0001,]  # Under 10-4
-choice <- coeffs.table[abs(coeffs.table$coefficient)>0.0001,]
-n <- 7
+filter <- coeffs.table[abs(coeffs.table$coefficient)<0.000001,]  # Under 10-6
+choice <- coeffs.table[abs(coeffs.table$coefficient)>0.000001,]
+n <- 10
 
 barplot(choice$coefficient[1:n], col = rainbow(n), main = "Filtered coefficients of selected model")
 labs <- gsub("_", " ", choice$name[1:n])
@@ -1270,13 +1272,13 @@ rm(x, y, fit.lasso, cv.lasso, bestlam.lasso, lambda.grid, labs, filter, coeffs.t
 fm2 <- lm(response2 ~ #Air_passengers+
             Hospital_beds+
             Death_rate+
-            #Compensation_of_employees+
+            Compensation_of_employees+
             #Deaths+
             #Early_leavers_from_ed.+
             #Employment_worked_hrs.+
             #Farm_labour_force+
-            #Health_personnel+
-            #Respiratory_discharges+
+            Health_personnel+
+            Respiratory_discharges+
             Life_expectancy+
             #Longterm_care_beds+
             #Gross_domestic_product+
@@ -1291,7 +1293,7 @@ fm2 <- lm(response2 ~ #Air_passengers+
             NEET_rate, data=dataset)
 
 coeffs <- sort(fm2[["coefficients"]], decreasing = TRUE)
-n <- 7
+n <- 10
 par(mfrow=c(1,1))
 par(mar=c(4,6,4,6)+0.1)  # BLTR
 barplot(as.numeric(coeffs)[1:n], col = rainbow(n), main = "Coefficients of selected model")
@@ -1369,7 +1371,7 @@ plot(variogram(residuals.fm2. ~ Latitude+Longitude, data=resid_w2,
 # lag width: width of distance intervals over which point pairs are averaged
 #            in bins (default = cutoff distance / 15)
 
-coff <- 10
+coff <- 12
 
 plot(variogram(residuals.fm2. ~ 1, data=resid_w2,
                cutoff = coff, width = coff/15), pch=19, main = paste('Sample Variogram, cutoff =',coff))
@@ -1389,7 +1391,7 @@ resid_w2$Longitude <- as.numeric(resid_w2$Longitude)
 resid_w2$residuals.fm2. <- as.numeric(resid_w2$residuals.fm2.)
 coordinates(resid_w2) <- c('Latitude','Longitude')
 
-coff <- 10
+coff <- 12
 
 v <- variogram(residuals.fm2. ~ 1, data=resid_w2,
                cutoff = coff, width = coff/15, map = TRUE)
@@ -1413,7 +1415,7 @@ v.fit3 <- fit.variogram(v, vgm(1, "Gau", 5, 5))
 
 plot(v, v.fit1, pch = 19, main="Exponential model")
 plot(v, v.fit2, pch = 19, main="Spherical model")
-plot(v, v.fit3, pch = 19, main="Bessel model")
+plot(v, v.fit3, pch = 19, main="Gaussian model")
 
 # Validation: reproduce the experimental values
 
