@@ -1007,18 +1007,15 @@ x <- model.matrix(response1 ~ Air_passengers+
 # Build the vector of response
 y <- dataset[row.names(x),]$response1
 
-par(mfrow=c(1,1))
-par(mar=c(4,6,4,6)+0.1)  # BLTR
-boxplot(y)
-
 # Let's set a grid of candidate lambda's for the estimate
-lambda.grid <- 10^seq(2,-3,length=100)
+lambda.grid <- c(0,10^seq(2,-3,length=100))
 fit.lasso <- glmnet(x,y, lambda = lambda.grid) # default: alpha=1 -> lasso
 
 par(mfrow=c(1,1))
+par(mar=c(4,6,4,4)+0.1)  # BLTR
 plot(fit.lasso, xvar='lambda', label=TRUE, col = rainbow(dim(x)[2]))
 labs <- gsub("_", " ", dimnames(x)[[2]])
-legend('topright', labs, col =  rainbow(dim(x)[2]), lty=1, cex=0.8, ncol=2)
+legend('topright', labs, col =  rainbow(dim(x)[2]), lty=1, cex=0.7, ncol=2)
 
 # Let's set lambda via cross validation
 cv.lasso <- cv.glmnet(x,y,lambda=lambda.grid) # default: 10-fold CV
@@ -1029,15 +1026,14 @@ bestlam.lasso
 plot(cv.lasso)
 
 coeffs.table <- coeff2dt(fitobject = cv.lasso, s = 'lambda.min')
-filter <- coeffs.table[abs(coeffs.table$coefficient)<0.000001,]  # Under 10-6
-choice <- coeffs.table[abs(coeffs.table$coefficient)>0.000001,]
-n <- 19
 
-barplot(choice$coefficient[1:n], col = rainbow(n), main = "Filtered coefficients of selected model")
-labs <- gsub("_", " ", choice$name[1:n])
-legend('topright', labs, col =  rainbow(n), lty=1, cex=0.8, ncol=2)
+barplot(coeffs.table$coefficient[1:(length(coeffs.table[,1])-1)],
+        col = rainbow(length(coeffs.table[,1])-1),
+        main = "Coefficients of selected model")
+labs <- gsub("_", " ", coeffs.table$name[1:(length(coeffs.table[,1])-1)])
+legend('topright', labs, col =  rainbow(length(coeffs.table[,1])-1), lty=1, cex=0.8, ncol=2)
 
-rm(x, y, fit.lasso, cv.lasso, bestlam.lasso, lambda.grid, labs, filter, coeffs.table, n)
+rm(x, y, fit.lasso, cv.lasso, bestlam.lasso, lambda.grid, labs)
 
 #### Wave 1 residuals -----------------
 
@@ -1053,7 +1049,7 @@ fm1 <- lm(response1 ~ Air_passengers+
             Compensation_of_employees+
             Deaths+
             Early_leavers_from_ed.+
-            #Employment_worked_hrs.+
+            Employment_worked_hrs.+
             Farm_labour_force+
             Health_personnel+
             Respiratory_discharges+
@@ -1062,22 +1058,24 @@ fm1 <- lm(response1 ~ Air_passengers+
             Gross_domestic_product+
             Ed._participation+
             Population_density+
-            #Population+
+            Population+
             Pupils_enrolled+
             GVA_growth+
-            #Vehicles+
+            Vehicles+
             Tertiary_ed._students+
             Unemployment_rate+
-            #Utilised_agricultural_area+
+            Utilised_agricultural_area+
             NEET_rate, data=dataset)
 
 coeffs <- sort(fm1[["coefficients"]], decreasing = TRUE)
-n <- 19
+
 par(mfrow=c(1,1))
 par(mar=c(4,6,4,6)+0.1)  # BLTR
-barplot(as.numeric(coeffs)[1:n], col = rainbow(n), main = "Coefficients of selected model")
-labs <- gsub("_", " ", names(coeffs)[1:n])
-legend('topright', labs, col =  rainbow(n), lty=1, cex=0.8, ncol=2)
+barplot(as.numeric(coeffs)[1:(length(coeffs)-1)],
+        col = rainbow(length(coeffs)-1),
+        main = "Coefficients of selected model")
+labs <- gsub("_", " ", names(coeffs)[1:(length(coeffs)-1)])
+legend('topright', labs, col =  rainbow(length(coeffs)-1), lty=1, cex=0.8, ncol=2)
 
 par(mfrow=c(2,2))
 par(mar=c(4,6,4,2)+0.5)  # BLTR
@@ -1090,9 +1088,11 @@ resid_w1 <- merge(dataset[row.names(resid_w1), c('NUTS', 'Latitude', 'Longitude'
 
 # Map plot
 # Waves 1 and 2 initial configuration
-mybreaks <- c(seq(from = min(resid_w1$residuals.fm1.),
-                  to = max(resid_w1$residuals.fm1.),
-                  length.out = 5))
+mybreaks <- c(min(resid_w1$residuals.fm1., na.rm = TRUE)-0.0001,
+              min(resid_w1$residuals.fm1., na.rm = TRUE)/2,
+              0,
+              max(resid_w1$residuals.fm1., na.rm = TRUE)/2,
+              max(resid_w1$residuals.fm1., na.rm = TRUE)+0.0001)
 my_colors <- c('#0000ff', '#6495ed', '#f08080', '#ff0000')
 
 nuts_polyg_tagged <- merge(nuts_polyg[,c(1,7)], resid_w1[,c(2,5)], by="NUTS", all=TRUE)
@@ -1139,7 +1139,7 @@ plot(variogram(residuals.fm1. ~ 1, data=resid_w1,
 # panel (not too many directions otherwise noise will increase)
 # Note: zonal anisotropy
 
-plot(variogram(residuals.fm1.~Latitude+Longitude, data=resid_w1,
+plot(variogram(residuals.fm1.~Longitude, data=resid_w1,
                alpha = c(0, 45, 90, 135)), pch=19, main = 'Residual Variogram')
 # point pairs whose separation vector has a given direction are used in each
 # panel (not too many directions otherwise noise will increase)
@@ -1158,7 +1158,7 @@ plot(variogram(residuals.fm1. ~ 1, data=resid_w1,
 plot(variogram(residuals.fm1. ~ Latitude+Longitude, data=resid_w1,
                cutoff = coff, width = coff/15), pch=19, main = paste('Residual Variogram, cutoff =',coff))
 
-rm(fm1, choice, coeffs, n, samp_vgm, res_vgm,
+rm(fm1, coeff.table, coeffs, samp_vgm, res_vgm,
    nuts_polyg_tagged, labs, my_colors, mybreaks, mycolourscheme, tags)
 
 #### Variogram modeling ----
@@ -1172,7 +1172,7 @@ coordinates(resid_w1) <- c('Latitude','Longitude')
 
 coff <- 12
 
-v <- variogram(residuals.fm1. ~ 1, data=resid_w1,
+v <- variogram(residuals.fm1. ~ Latitude, data=resid_w1,
                cutoff = coff, width = coff/15, map = TRUE)
 
 ## weighted least squares fitting a variogram model to the sample variogram
@@ -1180,27 +1180,27 @@ v <- variogram(residuals.fm1. ~ 1, data=resid_w1,
 ## 1) choose a suitable model
 plot(v, multipanel = TRUE, plot.numbers = TRUE)
 
-v <- variogram(residuals.fm1. ~ 1, data=resid_w1,
+v <- variogram(residuals.fm1. ~ Latitude, data=resid_w1,
                cutoff = coff, width = coff/15)
 #vgm()
 ## 2) choose suitable initial values for partial sill, range & nugget
-v.fit1 <- fit.variogram(v, vgm(1, "Nug", 0, 0.1))
-v.fit2 <- fit.variogram(v, vgm(1, "Exp", 5, 5))
+v.fit1 <- fit.variogram(v, vgm(1, "Exp", 5, 5))
+v.fit2 <- fit.variogram(v, vgm(1, "Sph", 5, 5))
 v.fit3 <- fit.variogram(v, vgm(1, "Bes", 5, 5))
 
 ## 3) fit the model using one of the possible fitting criteria
 
-plot(v, v.fit1, pch = 19, main="Pure Nugget model")
-plot(v, v.fit2, pch = 19, main="Exponential model")
+plot(v, v.fit1, pch = 19, main="Exponential model")
+plot(v, v.fit2, pch = 19, main="Spherical model")
 plot(v, v.fit3, pch = 19, main="Bessel model")
 
 ## Problem: Anisotropy: alpha = 0, 45, 90, 135
 
-v <- variogram(residuals.fm1. ~ 1, data=resid_w1,
+v <- variogram(residuals.fm1. ~ Latitude, data=resid_w1,
                cutoff = coff, width = coff/15, alpha = c(0, 45, 90, 135))
 
-plot(v, v.fit1, pch = 19, main="Pure Nugget model")
-plot(v, v.fit2, pch = 19, main="Exponential model")
+plot(v, v.fit1, pch = 19, main="Exponential model")
+plot(v, v.fit2, pch = 19, main="Spherical model")
 plot(v, v.fit3, pch = 19, main="Bessel model")
 
 # Validation: reproduce the experimental values
@@ -1252,11 +1252,8 @@ x <- model.matrix(response2 ~ Air_passengers+
 # Build the vector of response
 y <- dataset[row.names(x),]$response2
 
-par(mfrow = c(1,1))
-boxplot(y)
-
 # Let's set a grid of candidate lambda's for the estimate
-lambda.grid <- 10^seq(2,-3,length=100)
+lambda.grid <- c(0,10^seq(2,-3,length=100))
 fit.lasso <- glmnet(x,y, lambda = lambda.grid) # default: alpha=1 -> lasso
 
 par(mfrow=c(1,1))
@@ -1273,15 +1270,14 @@ bestlam.lasso
 plot(cv.lasso)
 
 coeffs.table <- coeff2dt(fitobject = cv.lasso, s = 'lambda.min')
-filter <- coeffs.table[abs(coeffs.table$coefficient)<0.000001,]  # Under 10-6
-choice <- coeffs.table[abs(coeffs.table$coefficient)>0.000001,]
-n <- 10
 
-barplot(choice$coefficient[1:n], col = rainbow(n), main = "Filtered coefficients of selected model")
-labs <- gsub("_", " ", choice$name[1:n])
-legend('topright', labs, col =  rainbow(n), lty=1, cex=0.8, ncol=2)
+barplot(coeffs.table$coefficient[1:(length(coeffs.table[,1])-1)],
+        col = rainbow(length(coeffs.table[,1])-1),
+        main = "Coefficients of selected model")
+labs <- gsub("_", " ", coeffs.table$name[1:(length(coeffs.table[,1])-1)])
+legend('topright', labs, col=rainbow(length(coeffs.table[,1])-1), lty=1, cex=0.8, ncol=2)
 
-rm(x, y, fit.lasso, cv.lasso, bestlam.lasso, lambda.grid, labs, filter, coeffs.table, n)
+rm(x, y, fit.lasso, cv.lasso, bestlam.lasso, lambda.grid, labs)
 
 #### Wave 2 residuals -----------------
 
@@ -1301,7 +1297,7 @@ fm2 <- lm(response2 ~ #Air_passengers+
             #Deaths+
             #Early_leavers_from_ed.+
             #Employment_worked_hrs.+
-            #Farm_labour_force+
+            Farm_labour_force+
             Health_personnel+
             Respiratory_discharges+
             Life_expectancy+
@@ -1313,17 +1309,19 @@ fm2 <- lm(response2 ~ #Air_passengers+
             #Pupils_enrolled+
             GVA_growth+
             #Vehicles+
-            #Unemployment_rate+
+            Unemployment_rate+
             #Utilised_agricultural_area+
             NEET_rate, data=dataset)
 
 coeffs <- sort(fm2[["coefficients"]], decreasing = TRUE)
-n <- 10
+
 par(mfrow=c(1,1))
 par(mar=c(4,6,4,6)+0.1)  # BLTR
-barplot(as.numeric(coeffs)[1:n], col = rainbow(n), main = "Coefficients of selected model")
-labs <- gsub("_", " ", names(coeffs)[1:n])
-legend('topright', labs, col =  rainbow(n), lty=1, cex=0.8, ncol=2)
+barplot(as.numeric(coeffs)[1:(length(coeffs)-1)],
+        col = rainbow(length(coeffs)-1),
+        main = "Coefficients of selected model")
+labs <- gsub("_", " ", names(coeffs)[1:(length(coeffs)-1)])
+legend('topright', labs, col=rainbow(length(coeffs)-1), lty=1, cex=0.8, ncol=2)
 
 par(mfrow=c(2,2))
 par(mar=c(4,6,4,2)+0.5)  # BLTR
