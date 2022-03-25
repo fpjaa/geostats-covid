@@ -140,7 +140,8 @@ means_by_country <- country_nuts2[, -1] %>%
   group_by(country) %>%
   summarise_all("mean", na.rm = TRUE)
 
-rm(df_list, air, avail, causes, compens, death, early, employ, farm, health,
+rm(df_list, country_nuts2,
+   air, avail, causes, compens, death, early, employ, farm, health,
    hosp, life, longterm, nama, partic, popd, popul, pupils, regGVA,
    stock, students, unempl, utilized, young)
 
@@ -288,7 +289,7 @@ country_data <- country_data %>%
 my.max <- function(x) ifelse( !all(is.na(x)), max(x, na.rm=T), NA)
 my.med <- function(x) ifelse( !all(is.na(x)), median(x, na.rm=T), NA)
 my.mea <- function(x) ifelse( !all(is.na(x)), mean(x, na.rm=T), NA)
-#my.min <- function(x) ifelse( !all(is.na(x)), min(x, na.rm=T), NA)
+
 err <- data.frame(matrix(ncol = 24, nrow = 9))
 colnames(err)[1] <- 'type'
 colnames(err)[2:24] <- colnames(country_data)[3:25]
@@ -341,23 +342,6 @@ err[5,1] <- 'pop_med'
 err[5,2:24] <- apply(errors[,2:24], 2, my.med)
 err[8,1] <- 'pop_mea'
 err[8,2:24] <- apply(errors[,2:24], 2, my.mea)
-
-# Fill data
-#for (r in 1:141){ for (c in 2:24){ if (is.na(data[r,c]) && !is.na(data1[r,c+1])){ replace <- data1[r,c+2]*data[r,17]/data1[r,19]; data[r,c] <- replace } }
-
-# Check NAs that werent filled
-#means_by_country <- data[, -c(1, 25, 26)] %>%
-#  group_by(country) %>%
-#  summarise_all("mean", na.rm = TRUE)
-
-#missing <- is.na(means_by_country)
-#missing <- rowSums(missing)
-#missing <- data.frame(cbind(means_by_country$country, missing))
-#colnames(missing) <- c('country', 'nans')
-#missing$nans <- as.numeric(missing$nans)
-
-#par(mfrow=c(1,1))
-#barplot(missing$nans, main = "Missing features by country", xlab = "Country", ylab = "NAs", names.arg = missing$country, col = "darkred", horiz = FALSE)
 
 #### Add locations ####
 
@@ -416,11 +400,9 @@ rm(fill, locations, lost, spdf, i, lat, lon, new, nuts)
 dataset$latitude <- as.numeric(dataset$latitude)
 dataset$longitude <- as.numeric(dataset$longitude)
 
-rm(country_nuts2)
-
 #### Fill NAs: Trial by weighted mean by distance ----
 
-amount <- 5  # Number of neighbors
+amount <- 3  # Number of neighbors
 
 # Validation
 errors <- data.frame(matrix(ncol = 24, nrow = 136))
@@ -442,12 +424,12 @@ for (n in data$NUTS){
                      target = as.matrix(x_newdata[,c(2,3)]),
                      k = amount)
       values <- x_grid[knn.out$knnIndexDist[1,1:amount], 1]  # Col 1 with values
-      weights <- 1/knn.out$knnIndexDist[1,(amount+1):(2*amount)]  # Note they are squared
+      weights <- 1/sqrt(knn.out$knnIndexDist[1,(amount+1):(2*amount)])
       replace <- 1/sum(weights) * values %*% weights
       errors[errors$name==n,c] <- abs(replace - x_newdata[1,1])/x_newdata[1,1]
     }
   }
-}  # Takes a while
+}
 
 err[3,1] <- 'dist_max'
 err[3,2:24] <- apply(errors[,2:24], 2, my.max)
@@ -455,8 +437,6 @@ err[6,1] <- 'dist_med'
 err[6,2:24] <- apply(errors[,2:24], 2, my.med)
 err[9,1] <- 'dist_mea'
 err[9,2:24] <- apply(errors[,2:24], 2, my.mea)
-
-#dataset[is.na(dataset[,2]),2] <- air_fill
 
 #### Before filling ----
 
