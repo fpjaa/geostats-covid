@@ -13,8 +13,9 @@ library(readr)  # Read tsv for national means
 library(openxlsx)  # Read excel for national totals
 library(dplyr)  # Data management
 library(geojsonR)  # Load geojson points
-library(sp)  # Data management
-library(gstat)  # Krigging
+#library(sp)  # Data management
+#library(gstat)  # Krigging
+library(yaImpute)  # Approx nearest neighbors
 
 #### Load data to complete ----
 
@@ -285,7 +286,9 @@ country_data <- country_data %>%
 #### Assessment for data filling: Preparation ----
 
 my.max <- function(x) ifelse( !all(is.na(x)), max(x, na.rm=T), NA)
-my.min <- function(x) ifelse( !all(is.na(x)), min(x, na.rm=T), NA)
+my.med <- function(x) ifelse( !all(is.na(x)), median(x, na.rm=T), NA)
+my.mea <- function(x) ifelse( !all(is.na(x)), mean(x, na.rm=T), NA)
+#my.min <- function(x) ifelse( !all(is.na(x)), min(x, na.rm=T), NA)
 err <- data.frame(matrix(ncol = 24, nrow = 9))
 colnames(err)[1] <- 'type'
 colnames(err)[2:24] <- colnames(country_data)[3:25]
@@ -301,18 +304,17 @@ colnames(errors) <- colnames(data1)[2:25]
 for (r in 1:136){
   for (c in 2:24){
     if (!is.na(data[r,c]) && !is.na(data1[r,c+1]) && data[r,c] != 0){
-      errors[r,c] <- (data1[r,c+1] - data[r,c])/data[r,c]
+      errors[r,c] <- abs(data1[r,c+1] - data[r,c])/data[r,c]
     }
   }
 }
 
-err[1,1] <- 'mean'
-err[1,2:24] <- apply(errors[,2:24], 2, my.max) - apply(errors[,2:24], 2, my.min)
-
-err[4,1] <- 'mean_min'
-err[4,2:24] <- apply(errors[,2:24], 2, my.min)
-err[5,1] <- 'mean_max'
-err[5,2:24] <- apply(errors[,2:24], 2, my.max)
+err[1,1] <- 'mean_max'
+err[1,2:24] <- apply(errors[,2:24], 2, my.max)
+err[4,1] <- 'mean_med'
+err[4,2:24] <- apply(errors[,2:24], 2, my.med)
+err[7,1] <- 'mean_mea'
+err[7,2:24] <- apply(errors[,2:24], 2, my.mea)
 
 # CY or PT for longterm beds doesn't exist
 
@@ -328,18 +330,17 @@ for (r in 1:136){
   for (c in 2:24){
     if (!is.na(data[r,c]) && !is.na(data1[r,c+1]) && data[r,c] != 0){
       replace <- data1[r,c+2]*data[r,17]/data1[r,19]
-      errors[r,c] <- (replace - data[r,c])/data[r,c]
+      errors[r,c] <- abs(replace - data[r,c])/data[r,c]
     }
   }
 }
 
-err[2,1] <- 'pop'
-err[2,2:24] <- apply(errors[,2:24], 2, my.max) - apply(errors[,2:24], 2, my.min)
-
-err[6,1] <- 'pop_min'
-err[6,2:24] <- apply(errors[,2:24], 2, my.min)
-err[7,1] <- 'pop_max'
-err[7,2:24] <- apply(errors[,2:24], 2, my.max)
+err[2,1] <- 'pop_max'
+err[2,2:24] <- apply(errors[,2:24], 2, my.max)
+err[5,1] <- 'pop_med'
+err[5,2:24] <- apply(errors[,2:24], 2, my.med)
+err[8,1] <- 'pop_mea'
+err[8,2:24] <- apply(errors[,2:24], 2, my.mea)
 
 # Fill data
 #for (r in 1:141){ for (c in 2:24){ if (is.na(data[r,c]) && !is.na(data1[r,c+1])){ replace <- data1[r,c+2]*data[r,17]/data1[r,19]; data[r,c] <- replace } }
@@ -373,8 +374,6 @@ for (i in 1:2010){
   locations[nrow(locations) + 1, ] <- new
 }
 
-# We will use all possible regions with data, not just the ASP data
-#colnames(country_nuts2)[1] <- "NUTS"
 dataset <- merge(data, locations, by = 'NUTS')
 
 lost <- anti_join(data, locations, by="NUTS")
@@ -421,6 +420,8 @@ rm(country_nuts2)
 
 #### Fill NAs: Trial by weighted mean by distance ----
 
+amount <- 5  # Number of neighbors
+
 # Validation
 errors <- data.frame(matrix(ncol = 24, nrow = 136))
 errors[,1] <- data1[,2]
@@ -431,21 +432,29 @@ for (n in data$NUTS){
       x_grid <- dataset[dataset$NUTS!=n,c(c,28,29)]  # Discard the value to evaluate
       x_grid <- x_grid[!is.na(x_grid[,1]),]  # Discard NAs
       x_newdata <- dataset[dataset$NUTS==n,c(c,28,29)]  # Value to validate
-      coordinates(x_grid) <- c('latitude','longitude')
-      coordinates(x_newdata) <- c('latitude','longitude')
-      replace <- idw0(as.formula(paste(colnames(dataset)[c],"~1")), data = x_grid, newdata = x_newdata, idp = 1.0)
-      errors[errors$name==n,c] <- (replace - data[data$NUTS==n,c])/data[data$NUTS==n,c]
+      # Approximate nearest-neighbor search
+      # This command finds the k nearest points in x_grid for each point in x_newdata
+      # In the output:
+      #   The first k columns are the row numbers of the points
+      #   The next k columns (k+1:2k) are the squared euclidean distances
+      # Idea: First k to get the value, next k to have the weights
+      knn.out <- ann(ref = as.matrix(x_grid[,c(2,3)]),
+                     target = as.matrix(x_newdata[,c(2,3)]),
+                     k = amount)
+      values <- x_grid[knn.out$knnIndexDist[1,1:amount], 1]  # Col 1 with values
+      weights <- 1/knn.out$knnIndexDist[1,(amount+1):(2*amount)]  # Note they are squared
+      replace <- 1/sum(weights) * values %*% weights
+      errors[errors$name==n,c] <- abs(replace - x_newdata[1,1])/x_newdata[1,1]
     }
   }
 }  # Takes a while
 
-err[3,1] <- 'dist'
-err[3,2:24] <- apply(errors[,2:24], 2, my.max) - apply(errors[,2:24], 2, my.min)
-
-err[8,1] <- 'dist_min'
-err[8,2:24] <- apply(errors[,2:24], 2, my.min)
-err[9,1] <- 'dist_max'
-err[9,2:24] <- apply(errors[,2:24], 2, my.max)
+err[3,1] <- 'dist_max'
+err[3,2:24] <- apply(errors[,2:24], 2, my.max)
+err[6,1] <- 'dist_med'
+err[6,2:24] <- apply(errors[,2:24], 2, my.med)
+err[9,1] <- 'dist_mea'
+err[9,2:24] <- apply(errors[,2:24], 2, my.mea)
 
 #dataset[is.na(dataset[,2]),2] <- air_fill
 
@@ -479,7 +488,8 @@ barplot(height = missing$nans,
         col = "darkblue",
         las = 1,
         cex.names = 1,
-        horiz = TRUE)
+        horiz = TRUE,
+        xpd = FALSE)
 
 missing <- is.na(data[, -c(1, 25, 26,27)])
 missing <- colSums(missing)
@@ -506,73 +516,86 @@ barplot(height = missing$missing,
         cex.names = 0.6,
         horiz = TRUE)
 
-rm(errors, my.max, my.min)
+rm(errors, my.max, my.med, my.mea)
 
 # Compare errors
 
-plot(1:23, log(err[3,2:24]), ylab="Log error range", xlab="Feature", main="Approximation method comparison", type="p")
+plot(1:23, log(err[3,2:24]), ylab="Max log error", xlab="Feature", main="Approximation method comparison", type="p")
 points(1:23, log(err[2,2:24]), col="red")
 points(1:23, log(err[1,2:24]), col="blue")
-legend("bottomleft",legend = err[c(3,2,1),1],
+legend("topright",legend = err[c(3,2,1),1],
+       col = c("black", "red", "blue"), pch = 1, cex = 0.8, ncol = 3)
+
+plot(1:23, log(err[6,2:24]), ylab="Median log error", xlab="Feature", main="Approximation method comparison", type="p")
+points(1:23, log(err[5,2:24]), col="red")
+points(1:23, log(err[4,2:24]), col="blue")
+legend("bottomleft",legend = err[c(6,5,4),1],
+       col = c("black", "red", "blue"), pch = 1, cex = 0.8)
+
+plot(1:23, log(err[9,2:24]), ylab="Mean log error", xlab="Feature", main="Approximation method comparison", type="p")
+points(1:23, log(err[8,2:24]), col="red")
+points(1:23, log(err[7,2:24]), col="blue")
+legend("topright",legend = err[c(9,8,7),1],
        col = c("black", "red", "blue"), pch = 1, cex = 0.8)
 
 #### Fill NAs ----
 
 # Winner by feature
-## Air = pop -> Problematic (over 1 as range) -> Shouldn't refill
-## Available = mean -> Problematic (bit over 1 as range)
+## Air = None
+## Available = KNN
 ## Causes = mean
-## Compensation = pop -> Problematic (bit over 1 as range)
+## Compensation = pop
 ## Deaths doesn't need filling
-## Early = pop
-## Employment = pop -> Problematic (bit over 1 as range)
+## Early = mean
+## Employment = pop
 ## Farm doesn't need filling
-## Health = pop -> Problematic (bit over 1 as range)
+## Health = pop
 ## Discharges = pop
 ## Life = mean
-## Longterm = dist -> Problematic (over 1 as range)
-## GDP = pop -> Problematic (bit over 1 as range)
-## Participation = pop
+## Longterm = KNN
+## GDP = pop
+## Participation = mean
 ## Density = pop
 ## Population doesn't need filling
 ## Pupils = pop
-## GVA = dist
-## Stock = pop -> Problematic (bit over 1 as range)
-## Students = pop -> Problematic (bit over 1 as range)
-## Unemployment = pop -> Problematic (bit over 1 as range)
+## GVA = mean
+## Stock = pop
+## Students = pop
+## Unemployment = mean
 ## Utilized doesn't need filling
-## NEETs = pop
+## NEETs = mean
 
 # Fill data: Using means by country
-## causes of death, life expectancy
+## causes of death, early leavers, life expectancy, participation, GVA, unemployment, NEET
 data1 <- merge(data[,c(1,27)], means_by_country, by = 'country')
-for (i in c(4,12)){
+for (i in c(4,7,12,15,19,22,24)){
   data[,i] <- ifelse(is.na(data[,i]), data1[,i+1], data[,i])
 }
 # Fill data: Using weights by population
 data1 <- merge(data[,c(1,27)], country_data, by = 'country')
 for (r in 1:136){
-  for (c in c(5,7,8,10,11,14,15,16,18,20,21,22,24)){
+  for (c in c(5,8,10,11,14,16,18,20,21)){
     if (is.na(data[r,c]) && !is.na(data1[r,c+1])){
       replace <- data1[r,c+2]*data[r,17]/data1[r,19]
       data[r,c] <- replace
     }
   }
 }
-# Universal kriging: Available, long-term care beds, GVA
-for (n in data$NUTS){
-  for (c in c(3, 13, 19)){
-    x_grid <- dataset[!is.na(dataset[,c]),c(c,28,29)]  # Discard NAs
-    x_newdata <- dataset[is.na(dataset[,c]),c(c,28,29)]  # Values to replace
-    coordinates(x_grid) <- c('latitude','longitude')
-    coordinates(x_newdata) <- c('latitude','longitude')
-    replace <- idw0(as.formula(paste(colnames(dataset)[c],"~1")), data = x_grid, newdata = x_newdata, idp = 1.0)
-    data[is.na(data[,c]),c] <- replace
-  }
-}  # Takes a while
-#data[,c(13, 19)] <- dataset[,c(13, 19)]
+# KNN: Available, long-term care beds
+for (c in c(3,13)){
+  x_grid <- dataset[!is.na(dataset[,c]),c(c,28,29)]  # Discard NAs
+  x_newdata <- dataset[is.na(dataset[,c]),c(c,28,29)]  # Values to replace
+  knn.out <- ann(ref = as.matrix(x_grid[,c(2,3)]),
+                 target = as.matrix(x_newdata[,c(2,3)]),
+                 k = amount)
+  values <- matrix(x_grid[knn.out$knnIndexDist[,1:amount], 1], ncol=amount)
+  weights <- 1/matrix(knn.out$knnIndexDist[,(amount+1):(2*amount)], ncol=amount)
+  replace <- 1/apply(weights, 1, sum) * apply(values * weights, 1, sum)
+  data[is.na(data[,c]),c] <- replace
+}
 
-rm(data1, means_by_country, c, r, i, replace, x_grid, x_newdata, n)
+rm(data1, means_by_country, c, r, i, replace,
+   x_grid, x_newdata, n, knn.out, values, weights, amount)
 
 # Fix data fill that is supposed to be integer
 ## Deaths (ok), population (ok), pupils (to do), students (to do),
@@ -602,6 +625,8 @@ missing <- missing %>%
   group_by(country) %>%
   summarise_all("max", na.rm = TRUE)
 
+missing$nans <- as.integer(missing$nans)
+
 par(mfrow=c(1,1))
 par(mar=c(5,7,4,3)+0.1)
 barplot(height = missing$nans,
@@ -612,7 +637,8 @@ barplot(height = missing$nans,
         col = "darkblue",
         las = 1,
         cex.names = 1,
-        horiz = TRUE)
+        horiz = TRUE,
+        xlim = c(0,18))
 
 missing <- is.na(data[, -c(1, 25, 26,27)])
 missing <- colSums(missing)
@@ -637,7 +663,8 @@ barplot(height = missing$missing,
         col = "darkblue",
         las = 1,
         cex.names = 0.6,
-        horiz = TRUE)
+        horiz = TRUE,
+        xlim = c(0,49))
 
 # Unsolvable cases:
 ## No national data in DE, error with other methods too high
@@ -646,8 +673,6 @@ rm(countries, missing, country_data, err)
 
 #### Add locations: Save dataset ####
 
-#install.packages('geojsonR')
-library(geojsonR)
 spdf <- FROM_GeoJson("NUTS_LB_2021_4326.geojson")
 
 locations <- data.frame(matrix(ncol = 3, nrow = 0))
