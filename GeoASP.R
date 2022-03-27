@@ -128,6 +128,41 @@ young <- read_tsv('young_people_neither_in_employment_nor_in_education_and_train
 young <- young[,c(1,ncol(young))]
 colnames(young)[ncol(young)] <- 'young'
 
+# Ricuperare BE
+BE_causes <- causes[substr(causes$geo,1,2)=="BE",]
+BE_pop <- popul[substr(popul$geo,1,2)=="BE",]
+BE_causes <- merge(BE_causes, BE_pop, by="geo")
+BE_causes$tot <- BE_causes$causes * BE_causes$popul
+BE_causes$geo <- substr(BE_causes$geo,1,3)
+BE_causes <- BE_causes[,-2] %>%
+  group_by(geo) %>%
+  summarise_all("sum", na.rm = TRUE)
+BE_causes$causes <- BE_causes$tot / BE_causes$popul
+# Fill BE data
+data[substr(data$NUTS,1,2)=="BE", 4] <- BE_causes$causes
+
+rm(BE_causes, BE_pop)
+
+BE_compens <- compens[substr(compens$geo,1,2)=="BE",]
+BE_compens$geo <- substr(BE_compens$geo,1,3)
+BE_compens <- BE_compens %>%
+  group_by(geo) %>%
+  summarise_all("sum", na.rm = TRUE)
+# Fill BE data
+data[substr(data$NUTS,1,2)=="BE", 5] <- BE_compens$compens[1:3]
+rm(BE_compens)
+
+BE_life <- life[substr(life$geo,1,2)=="BE",]
+BE_life$geo <- substr(BE_life$geo,1,3)
+BE_life <- BE_life %>%
+  group_by(geo) %>%
+  summarise_all("mean", na.rm = TRUE)
+data[substr(data$NUTS,1,2)=="BE",12] <- BE_life$life
+rm(BE_life)
+
+#gdp <- merge(data[,c(1,14)], nama, by=1, all.x = TRUE)
+#gva <- merge(data[,c(1,19)], regGVA, by=1, all.x = TRUE)
+
 df_list <- list(air, avail, causes, compens, death, early, employ, farm, health,
                 hosp, life, longterm, nama, partic, popd, popul, pupils, regGVA,
                 stock, students, unempl, utilized, young)      
@@ -319,6 +354,20 @@ err[7,2:24] <- apply(errors[,2:24], 2, my.mea)
 
 # CY or PT for longterm beds doesn't exist
 
+errors$country = substr(errors$NUTS,1,2)
+
+errors_c <- errors[,-1] %>%
+  group_by(country) %>%
+  summarise_all("mean", na.rm = TRUE)
+
+matplot(t((errors_c[,-1])^(1/3)),
+        ylab = "Cubic root errors", xlab = "Feature index", 
+        col = rainbow(length(errors_c)),
+        main="Country-mean errors by country", type="p", pch = 2:5)
+legend("topright", legend = as.list(errors_c$country),
+       col = rainbow(length(errors_c)), pch = 2:5, cex = 0.8, ncol = 6)
+
+
 #### Fill NAs: Trial by population proportion ----
 
 data1 <- merge(data[,c(1,27)], country_data, by = 'country')
@@ -342,6 +391,19 @@ err[5,1] <- 'pop_med'
 err[5,2:24] <- apply(errors[,2:24], 2, my.med)
 err[8,1] <- 'pop_mea'
 err[8,2:24] <- apply(errors[,2:24], 2, my.mea)
+
+errors$country = substr(errors$name,1,2)
+
+errors_c <- errors[,-1] %>%
+  group_by(country) %>%
+  summarise_all("mean", na.rm = TRUE)
+
+matplot(t((errors_c[,-1])^(1/3)),
+        ylab = "Cubic root errors", xlab = "Feature index", 
+        col = rainbow(length(errors_c)),
+        main="Population proportion errors by country", type="p", pch = 2:5)
+legend("topright", legend = as.list(errors_c$country),
+       col = rainbow(length(errors_c)), pch = 2:5, cex = 0.8, ncol = 6)
 
 #### Add locations ####
 
@@ -438,6 +500,19 @@ err[6,2:24] <- apply(errors[,2:24], 2, my.med)
 err[9,1] <- 'dist_mea'
 err[9,2:24] <- apply(errors[,2:24], 2, my.mea)
 
+errors$country = substr(errors$name,1,2)
+
+errors_c <- errors[,-1] %>%
+  group_by(country) %>%
+  summarise_all("mean", na.rm = TRUE)
+
+matplot(t((errors_c[,-1])^(1/3)),
+        ylab = "Cubic root errors", xlab = "Feature index", 
+        col = rainbow(length(errors_c)),
+        main="KNN errors by country", type="p", pch = c(2:5))
+legend("topright", legend = as.list(errors_c$country),
+       col = rainbow(length(errors_c)), pch = c(2:5), cex = 0.8, ncol = 6)
+
 #### Before filling ----
 
 # Previous NAs
@@ -496,9 +571,11 @@ barplot(height = missing$missing,
         cex.names = 0.6,
         horiz = TRUE)
 
-rm(errors, my.max, my.med, my.mea)
+rm(errors, my.max, my.med, my.mea, errors_c)
 
 # Compare errors
+
+par(mar=c(5,3,4,3)+0.1)
 
 plot(1:23, log(err[3,2:24]), ylab="Max log error", xlab="Feature", main="Approximation method comparison", type="p")
 points(1:23, log(err[2,2:24]), col="red")
@@ -525,25 +602,45 @@ legend("topright",legend = err[c(9,8,7),1],
 ## Available = KNN
 ## Causes = mean
 ## Compensation = pop
-## Deaths doesn't need filling
+## 5 Deaths doesn't need filling
 ## Early = mean
 ## Employment = pop
 ## Farm doesn't need filling
 ## Health = pop
-## Discharges = pop
+## 10 Discharges = pop
 ## Life = mean
 ## Longterm = KNN
 ## GDP = pop
 ## Participation = mean
-## Density = pop
+## 15 Density = pop
 ## Population doesn't need filling
 ## Pupils = pop
 ## GVA = mean
 ## Stock = pop
-## Students = pop
+## 20 Students = pop
 ## Unemployment = mean
 ## Utilized doesn't need filling
 ## NEETs = mean
+
+missing <- is.na(data[, -c(1, 25, 26)])
+
+data$country = substr(data$NUTS,1,2)
+countries <- merge(data[,c(1,27)], country_data[,c(1,2)], by = 'country')
+countries$name <- replace(countries$name, countries$name=="Germany (until 1990 former territory of the FRG)", "Germany")
+
+countries <- countries$name
+missing <- data.frame(countries, missing)
+
+missing_matrix <- missing[,-25] %>%
+  group_by(countries) %>%
+  summarise_all("sum", na.rm = TRUE)
+
+## Longterm = KNN -> MT warning but 0 NAs
+## Density = pop -> 2 clusters (CY+EE+LU+LVMT have 0 errors), 0 NAs
+## Stock = pop -> DE warning but 4/20 NAs
+## Students = pop -> CY lower outlier but 0 NAs
+## Unemployment = mean -> CY+HR lower outlier but 0 NAs
+## NEETs = mean -> CY+EE lower outlier but 0 NAs
 
 # Fill data: Using means by country
 ## causes of death, early leavers, life expectancy, participation, GVA, unemployment, NEET
@@ -649,7 +746,7 @@ barplot(height = missing$missing,
 # Unsolvable cases:
 ## No national data in DE, error with other methods too high
 
-rm(countries, missing, country_data, err)
+rm(countries, missing, country_data, err, missing_matrix)
 
 #### Add locations: Save dataset ####
 
