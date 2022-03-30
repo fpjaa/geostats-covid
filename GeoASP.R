@@ -128,6 +128,24 @@ young <- read_tsv('young_people_neither_in_employment_nor_in_education_and_train
 young <- young[,c(1,ncol(young))]
 colnames(young)[ncol(young)] <- 'young'
 
+setwd('/home/fpjaa/Documents/GitHub/geostats-covid/')
+
+gvagr <- read.xlsx('gvagr_2020.xlsx', sheet=3)
+gvagr <- gvagr[7:420,c(1,ncol(gvagr)-3)]  #2019
+colnames(gvagr) <- c('name', 'gvagr')
+gvagr$gvagr <- as.numeric(gvagr$gvagr)
+
+names <- read.csv('names.csv')
+names <- data.frame(names[,c(1,2)])
+colnames(names) <- c('NUTS', 'name')
+
+regGVA <- merge(gvagr, names, by="name")
+regGVA <- regGVA[!duplicated(regGVA$name),]
+regGVA <- regGVA[,c(2,3)]
+gva <- merge(data[,c(1,19)], regGVA, by="NUTS", all.x = TRUE)
+colnames(regGVA) <- c('regGVA', 'geo')
+data[,19] <- gva$gvagr
+
 # Ricuperare BE
 BE_causes <- causes[substr(causes$geo,1,2)=="BE",]
 BE_pop <- popul[substr(popul$geo,1,2)=="BE",]
@@ -160,8 +178,13 @@ BE_life <- BE_life %>%
 data[substr(data$NUTS,1,2)=="BE",12] <- BE_life$life
 rm(BE_life)
 
-#gdp <- merge(data[,c(1,14)], nama, by=1, all.x = TRUE)
-#gva <- merge(data[,c(1,19)], regGVA, by=1, all.x = TRUE)
+BE_gdp <- nama[substr(nama$geo,1,2)=="BE",]
+BE_gdp$geo <- substr(BE_gdp$geo,1,3)
+BE_gdp <- BE_gdp %>%
+  group_by(geo) %>%
+  summarise_all("sum", na.rm = TRUE)
+data[substr(data$NUTS,1,2)=="BE",14] <- BE_gdp$nama[1:3]
+rm(BE_gdp)
 
 df_list <- list(air, avail, causes, compens, death, early, employ, farm, health,
                 hosp, life, longterm, nama, partic, popd, popul, pupils, regGVA,
@@ -178,7 +201,7 @@ means_by_country <- country_nuts2[, -1] %>%
 rm(df_list, country_nuts2,
    air, avail, causes, compens, death, early, employ, farm, health,
    hosp, life, longterm, nama, partic, popd, popul, pupils, regGVA,
-   stock, students, unempl, utilized, young)
+   stock, students, unempl, utilized, young, gvagr, gdp, gva, names)
 
 #### Load data by variable: National totals ####
 
@@ -245,7 +268,7 @@ colnames(longterm) <- c('name', 'longterm')
 longterm$longterm <- as.numeric(longterm$longterm)
 
 nama <- read.xlsx('nama_gdp_by_country.xlsx', sheet=3)
-nama <- nama[7:39,c(1,ncol(nama)-1)]
+nama <- nama[7:39,c(1,ncol(nama)-3)] #2019
 colnames(nama) <- c('name', 'nama')
 nama$nama <- as.numeric(nama$nama)
 
@@ -413,8 +436,8 @@ spdf <- FROM_GeoJson("NUTS_LB_2021_4326.geojson")
 locations <- data.frame(matrix(ncol = 3, nrow = 0))
 colnames(locations) <- c('latitude', 'longitude', 'NUTS')
 for (i in 1:2010){
-  lat <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][1]
-  lon <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][2]
+  lon <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][1]
+  lat <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][2]
   nuts <- spdf[["features"]][[i]][["properties"]][["NUTS_ID"]]
   new <- c(lat, lon, nuts)                       # Create new row
   locations[nrow(locations) + 1, ] <- new
@@ -429,8 +452,8 @@ spdf <- FROM_GeoJson("NUTS_LB_2013_4326.geojson")
 locations <- data.frame(matrix(ncol = 3, nrow = 0))
 colnames(locations) <- c('latitude', 'longitude', 'NUTS')
 for (i in 1:1951){
-  lat <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][1]
-  lon <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][2]
+  lon <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][1]
+  lat <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][2]
   nuts <- spdf[["features"]][[i]][["properties"]][["NUTS_ID"]]
   new <- c(lat, lon, nuts)                       # Create new row
   locations[nrow(locations) + 1, ] <- new
@@ -446,8 +469,8 @@ spdf <- FROM_GeoJson("NUTS_LB_2006_4326.geojson")
 locations <- data.frame(matrix(ncol = 3, nrow = 0))
 colnames(locations) <- c('latitude', 'longitude', 'NUTS')
 for (i in 1:1931){
-  lat <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][1]
-  lon <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][2]
+  lon <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][1]
+  lat <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][2]
   nuts <- spdf[["features"]][[i]][["properties"]][["NUTS_ID"]]
   new <- c(lat, lon, nuts)                       # Create new row
   locations[nrow(locations) + 1, ] <- new
@@ -675,10 +698,14 @@ rm(data1, means_by_country, c, r, i, replace,
    x_grid, x_newdata, n, knn.out, values, weights, amount)
 
 # Fix data fill that is supposed to be integer
-## Deaths (ok), population (ok), pupils (to do), students (to do),
+## Deaths (ok), discharges (to do), health personnel (to do),
+## population (ok), pupils (to do), students (to do), stock (to do),
 ## farm labour force (to do) and utilised agricultural area (to do)
 data$deaths <- as.integer(data$deaths)
+data$health_personnel_by_nuts2 <- as.integer(data$health_personnel_by_nuts2)
+data$hospital_discharges_resp_diseases_j00_to_j99_nuts2 <- as.integer(data$hospital_discharges_resp_diseases_j00_to_j99_nuts2)
 data$population_nuts2 <- as.integer(data$population_nuts2)
+data$stock_of_vehicles_by_category_and_nuts2 <- as.integer(data$stock_of_vehicles_by_category_and_nuts2)
 data$students_enrolled_in_tertiary_education_by_education_level_programme_orientation_sex_and_nuts2 <- as.integer(data$students_enrolled_in_tertiary_education_by_education_level_programme_orientation_sex_and_nuts2)
 data$pupils_and_students_enrolled_by_sex_age_and_nuts2 <- as.integer(data$pupils_and_students_enrolled_by_sex_age_and_nuts2)
 data$farm_labour_force <- as.integer(data$farm_labour_force)
@@ -755,8 +782,8 @@ spdf <- FROM_GeoJson("NUTS_LB_2021_4326.geojson")
 locations <- data.frame(matrix(ncol = 3, nrow = 0))
 colnames(locations) <- c('latitude', 'longitude', 'NUTS')
 for (i in 1:2010){
-  lat <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][1]
-  lon <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][2]
+  lon <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][1]
+  lat <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][2]
   nuts <- spdf[["features"]][[i]][["properties"]][["NUTS_ID"]]
   new <- c(lat, lon, nuts)                       # Create new row
   locations[nrow(locations) + 1, ] <- new
@@ -806,8 +833,8 @@ spdf <- FROM_GeoJson("NUTS_LB_2013_4326.geojson")
 locations <- data.frame(matrix(ncol = 3, nrow = 0))
 colnames(locations) <- c('latitude', 'longitude', 'NUTS')
 for (i in 1:1951){
-  lat <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][1]
-  lon <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][2]
+  lon <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][1]
+  lat <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][2]
   nuts <- spdf[["features"]][[i]][["properties"]][["NUTS_ID"]]
   new <- c(lat, lon, nuts)                       # Create new row
   locations[nrow(locations) + 1, ] <- new
@@ -822,8 +849,8 @@ spdf <- FROM_GeoJson("NUTS_LB_2006_4326.geojson")
 locations <- data.frame(matrix(ncol = 3, nrow = 0))
 colnames(locations) <- c('latitude', 'longitude', 'NUTS')
 for (i in 1:1931){
-  lat <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][1]
-  lon <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][2]
+  lon <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][1]
+  lat <- spdf[["features"]][[i]][["geometry"]][["coordinates"]][2]
   nuts <- spdf[["features"]][[i]][["properties"]][["NUTS_ID"]]
   new <- c(lat, lon, nuts)                       # Create new row
   locations[nrow(locations) + 1, ] <- new
@@ -845,9 +872,9 @@ dataset$longitude <- as.numeric(dataset$longitude)
 # Similarly, some negative longitudes can be discarded,
 # they are not the same locations, but an extra of 2 locations
 ## This will require to exclude 5 regions
-dataset <- dataset[dataset$latitude>-40,]
+dataset <- dataset[dataset$longitude>-40,]
 # "FRY1" "FRY2" "FRY3"
-dataset <- dataset[dataset$longitude>0,]
+dataset <- dataset[dataset$latitude>0,]
 # "FRY4" "FRY5"
 
 colnames(dataset) <- c("NUTS", "Air_passengers", "Hospital_beds", "Death_rate",
@@ -929,6 +956,8 @@ nuts_polyg <- rbind(nuts_polyg, nuts_polyg1[,-c(7)])
 lost <- anti_join(lost, nuts_polyg1, by="NUTS")
 
 rm(lost, nuts_polyg1)
+
+#write_csv(nuts_polyg[,c(1,4)], 'names.csv')
 
 setwd('/home/fpjaa/Documents/GitHub/geostats-covid/')
 
