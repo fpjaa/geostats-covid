@@ -1268,13 +1268,13 @@ resid_w1$Longitude <- as.numeric(resid_w1$Longitude)
 resid_w1$residuals1 <- as.numeric(resid_w1$residuals1)
 coordinates(resid_w1) <- c('Latitude','Longitude')
 proj4string(resid_w1) <- CRS("+init=epsg:4326")
-resid_proj <- spTransform(resid_w1, CRS("+proj=longlat +datum=WGS84"))
-
-coff <- 1900
+#resid_proj <- spTransform(resid_w1, CRS("+proj=longlat +datum=WGS84"))
 
 plot(variogram(residuals1 ~ 1, data=resid_w1), pch=19, main = 'Sample Variogram')
 
 plot(variogram(residuals1 ~ Longitude, data=resid_w1), pch=19, main = 'Residual Variogram')
+
+coff <- 1900
 
 plot(variogram(residuals1 ~ 1, data=resid_w1,
                cutoff = coff, width = coff/15), pch=19, main = paste('Sample Variogram, cutoff =',coff))
@@ -1441,7 +1441,7 @@ legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", 
 #title(main = "Local Moran Map of 1st wave cases density\n KNN criterion (K=5)")
 #legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
 
-#### LISA: Wave 1 responses ----
+#### Wave 1 responses ----
 
 par(mfrow=c(1,1))
 
@@ -1475,7 +1475,7 @@ plot(regions$geometry.x,
 title(main = "Local Moran Map of 1st wave response\n Rook neigbors criterion")
 legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
 
-#### LISA: Wave 1 cases ----
+#### Wave 1 cases ----
 
 par(mfrow=c(1,1))
 
@@ -1588,22 +1588,22 @@ hist(dataset$residuals2, breaks = 15,
      xlab = "Residuals")
 #qqplot(dataset$residuals1)
 
-resid_w1 <- dataset[, c('NUTS', 'residuals2', 'Latitude', 'Longitude')]
+resid_w2 <- dataset[, c('NUTS', 'residuals2', 'Latitude', 'Longitude')]
 
 # Map plot
 # Residuals configuration
-mybreaks <- c(min(resid_w1$residuals2, na.rm = TRUE)-0.0001,
-              min(resid_w1$residuals2, na.rm = TRUE)/2,
+mybreaks <- c(min(resid_w2$residuals2, na.rm = TRUE)-0.0001,
+              min(resid_w2$residuals2, na.rm = TRUE)/2,
               0,
-              max(resid_w1$residuals2, na.rm = TRUE)/2,
-              max(resid_w1$residuals2, na.rm = TRUE)+0.0001)
+              max(resid_w2$residuals2, na.rm = TRUE)/2,
+              max(resid_w2$residuals2, na.rm = TRUE)+0.0001)
 my_colors <- c('#0000ff', '#6495ed', '#f08080', '#ff0000')
 
-nuts_polyg_tagged <- merge(nuts_polyg[,c(1,7)], resid_w1[,c('NUTS', 'residuals2')], by="NUTS", all=TRUE)
+nuts_polyg_tagged <- merge(nuts_polyg[,c(1,7)], resid_w2[,c('NUTS', 'residuals2')], by="NUTS", all=TRUE)
 tags <- cut(nuts_polyg_tagged$residuals2, mybreaks)
 mycolourscheme <- my_colors[findInterval(nuts_polyg_tagged$residuals2, vec = mybreaks)]
 
-# Wave 1 plot
+# Wave 2 plot
 par(mfrow=c(1,1))
 par(mar=c(2,4,2,4)+0.1)  # BLTR
 plot(nuts_polyg_tagged$geometry, col = mycolourscheme,
@@ -1629,9 +1629,9 @@ plot(nuts_polyg_tagged$geometry, col = mycolourscheme,
 legend("topleft", legend = levels(tags), col = my_colors, pch=1, cex=0.9,
        title="Response (wave 2)")
 
-resid_w1$Latitude <- as.numeric(resid_w1$Latitude)
-resid_w1$Longitude <- as.numeric(resid_w1$Longitude)
-resid_w1$residuals2 <- as.numeric(resid_w1$residuals2)
+resid_w2$Latitude <- as.numeric(resid_w2$Latitude)
+resid_w2$Longitude <- as.numeric(resid_w2$Longitude)
+resid_w2$residuals2 <- as.numeric(resid_w2$residuals2)
 
 # Extract data in case of anisotropy
 write.csv(dataset[, c('NUTS', 'Latitude', 'Longitude', 'Cases_density_2', 'response2', 'residuals2')], 'wave2.csv')
@@ -1642,42 +1642,44 @@ rm(coeffs.table, cv.lasso, fit.lasso, fitted_values, x, y,
 
 #### Variogram modeling ----
 
-resid_w1 <- read.csv("wave1.csv", header=TRUE, stringsAsFactors=FALSE)
-resid_w1 <- resid_w1[, c('Latitude', 'Longitude', 'residuals1')]
-resid_w1$Latitude <- as.numeric(resid_w1$Latitude)
-resid_w1$Longitude <- as.numeric(resid_w1$Longitude)
-resid_w1$residuals1 <- as.numeric(resid_w1$residuals1)
-coordinates(resid_w1) <- c('Latitude','Longitude')
-proj4string(resid_w1) <- CRS("+init=epsg:4326")
-resid_proj <- spTransform(resid_w1, CRS("+proj=longlat +datum=WGS84"))
+resid_w2 <- read.csv("wave2.csv", header=TRUE, stringsAsFactors=FALSE)
+resid_w2 <- resid_w2[, c('Latitude', 'Longitude', 'residuals2')]
+resid_w2$Latitude <- as.numeric(resid_w2$Latitude)
+resid_w2$Longitude <- as.numeric(resid_w2$Longitude)
+resid_w2$residuals1 <- as.numeric(resid_w2$residuals2)
+coordinates(resid_w2) <- c('Latitude','Longitude')
+proj4string(resid_w2) <- CRS("+init=epsg:4326")
+#resid_proj <- spTransform(resid_w2, CRS("+proj=longlat +datum=WGS84"))
 
-coff <- 1900
+plot(variogram(residuals2 ~ 1, data=resid_w2), pch=19, main = 'Sample Variogram')
 
-plot(variogram(residuals1 ~ 1, data=resid_w1), pch=19, main = 'Sample Variogram')
+#plot(variogram(residuals2 ~ Longitude, data=resid_w2), pch=19, main = 'Residual Variogram')
 
-plot(variogram(residuals1 ~ Longitude, data=resid_w1), pch=19, main = 'Residual Variogram')
+plot(variogram(residuals2 ~ Latitude, data=resid_w2), pch=19, main = 'Residual Variogram')
 
-plot(variogram(residuals1 ~ 1, data=resid_w1,
+coff <- 1100  # Second best: 1300
+
+plot(variogram(residuals2 ~ 1, data=resid_w2,
                cutoff = coff, width = coff/15), pch=19, main = paste('Sample Variogram, cutoff =',coff))
 
-plot(variogram(residuals1 ~ Longitude, data=resid_w1,
+plot(variogram(residuals2 ~ Latitude, data=resid_w2,
                cutoff = coff, width = coff/15), pch=19, main = paste('Residual Variogram, cutoff =',coff))
 
-plot(variogram(residuals1 ~ Longitude, data=resid_w1,
+plot(variogram(residuals2 ~ Latitude, data=resid_w2,
                alpha = c(0, 45, 90, 135),
                cutoff = coff, width = coff/15), pch=19, main = 'Directional Residual Variogram')
 
-plot(variogram(residuals1 ~ Longitude, data=resid_w1,
+plot(variogram(residuals2 ~ Latitude, data=resid_w2,
                cutoff = coff, width = coff/15,
                map = TRUE))
 
 ## weighted least squares fitting a variogram model to the sample variogram
 ## STEPS:
 ## 1) choose a suitable model
-v <- variogram(residuals1 ~ Longitude, data=resid_w1,
+v <- variogram(residuals2 ~ Latitude, data=resid_w2,
                cutoff = coff, width = coff/15)
 
-plot(v)
+#plot(v)
 #vgm()
 ## 2) choose suitable initial values for partial sill, range & nugget
 v.fit1 <- fit.variogram(v, vgm(1, "Exp", 500, 500))
@@ -1692,7 +1694,7 @@ plot(v, v.fit3, pch = 19, main="Gaussian model")
 
 ## Problem: Anisotropy: alpha = 0, 45, 90, 135
 
-v <- variogram(residuals1 ~ Longitude, data=resid_w1,
+v <- variogram(residuals2 ~ Latitude, data=resid_w2,
                cutoff = coff, width = coff/15, alpha = c(0, 45, 90, 135))
 
 plot(v, v.fit1, pch = 19, main="Exponential model")
@@ -1708,33 +1710,33 @@ c(attributes(v.fit1)$singular, attributes(v.fit2)$singular, attributes(v.fit3)$s
 # calculate generalised least squares residuals
 par(mfrow = c(1,3))
 
-g1 <- gstat(NULL, "exp", residuals1 ~ Longitude,
-            data = resid_w1, model = v.fit1)
-blue1 <- predict(g1, newdata = resid_w1, BLUE = TRUE)
-blue1$blue.res <- resid_w1$residuals1 - blue1$exp.pred
+g1 <- gstat(NULL, "exp", residuals2 ~ Latitude,
+            data = resid_w2, model = v.fit1)
+blue1 <- predict(g1, newdata = resid_w2, BLUE = TRUE)
+blue1$blue.res <- resid_w2$residuals2 - blue1$exp.pred
 exp.box <- boxplot(blue1$blue.res, main = "GLS residuals for Exp model")
 summary(blue1$blue.res)
 
-g2 <- gstat(NULL, "sph", residuals1 ~ Longitude,
-            data = resid_w1, model = v.fit2)
-blue2 <- predict(g2, newdata = resid_w1, BLUE = TRUE)
-blue2$blue.res <- resid_w1$residuals1 - blue2$sph.pred
+g2 <- gstat(NULL, "sph", residuals2 ~ Latitude,
+            data = resid_w2, model = v.fit2)
+blue2 <- predict(g2, newdata = resid_w2, BLUE = TRUE)
+blue2$blue.res <- resid_w2$residuals2 - blue2$sph.pred
 sph.box <- boxplot(blue2$blue.res, main = "GLS residuals for Sph model")
 summary(blue2$blue.res)
 
-g3 <- gstat(NULL, "gau", residuals1 ~ Longitude,
-            data = resid_w1, model = v.fit3)
-blue3 <- predict(g3, newdata = resid_w1, BLUE = TRUE)
-blue3$blue.res <- resid_w1$residuals1 - blue3$gau.pred
+g3 <- gstat(NULL, "gau", residuals2 ~ Latitude,
+            data = resid_w2, model = v.fit3)
+blue3 <- predict(g3, newdata = resid_w2, BLUE = TRUE)
+blue3$blue.res <- resid_w2$residuals2 - blue3$gau.pred
 gau.box <- boxplot(blue3$blue.res, main = "GLS residuals for Gau model")
 summary(blue3$blue.res)
 
-rm(resid_w1, resid_proj, v, v.fit1, v.fit2, v.fit3, coff,
+rm(resid_w2, resid_proj, v, v.fit1, v.fit2, v.fit3, coff,
    blue1, blue2, blue3, g1, g2, g3, exp.box, sph.box, gau.box)
 
 #### LISA setting ----
 
-dataset <- read.csv("wave1.csv", header=TRUE, stringsAsFactors=FALSE)
+dataset <- read.csv("wave2.csv", header=TRUE, stringsAsFactors=FALSE)
 regions.raw <- merge(dataset, nuts_polyg[,c(1,7)], by="NUTS")
 regions <- st_as_sf(regions.raw[,c('NUTS', 'geometry')])
 
@@ -1758,12 +1760,12 @@ summary(rook_w)  # Not very different from Queen
 #knn_w <- knn_weights(regions, 5)
 #summary(knn_w)
 
-#### Wave 1 residuals ----
+#### Wave 2 residuals ----
 
 par(mfrow=c(1,1))
 par(mar=c(2,4,4,4)+0.1)  # BLTR
 
-lisa_q <- local_moran(queen_w, data.frame(regions.raw$residuals1))  # Default: 999 permutations
+lisa_q <- local_moran(queen_w, data.frame(regions.raw$residuals2))  # Default: 999 permutations
 #fdr <- lisa_fdr(lisa_q, 0.05)  # False Discovery Rate, can use as cutoff for clusters
 
 regions.raw$clusters <- lisa_clusters(lisa_q)
@@ -1776,10 +1778,10 @@ lisa_labels <- lisa_labels(lisa_q)
 plot(regions$geometry.x, 
      col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
      border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
-title(main = "Local Moran Map of 1st wave residuals\n Queen neigbors criterion")
+title(main = "Local Moran Map of 2nd wave residuals\n Queen neigbors criterion")
 legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
 
-lisa_r <- local_moran(rook_w, data.frame(regions.raw$residuals1))  # Default: 999 permutations
+lisa_r <- local_moran(rook_w, data.frame(regions.raw$residuals2))  # Default: 999 permutations
 #fdr <- lisa_fdr(lisa, 0.05)  # False Discovery Rate, can use as cutoff for clusters
 
 regions.raw$clusters <- lisa_clusters(lisa_r)
@@ -1792,7 +1794,7 @@ lisa_labels <- lisa_labels(lisa_r)
 plot(regions$geometry.x, 
      col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
      border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
-title(main = "Local Moran Map of 1st wave residuals\n Rook neigbors criterion")
+title(main = "Local Moran Map of 2nd wave residuals\n Rook neigbors criterion")
 legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
 
 #lisa_d <- local_moran(dist_w, dataset['Cases_density_1'])  # Default: 999 permutations
@@ -1823,11 +1825,11 @@ legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", 
 #title(main = "Local Moran Map of 1st wave cases density\n KNN criterion (K=5)")
 #legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
 
-#### LISA: Wave 1 responses ----
+#### LISA: Wave 2 responses ----
 
 par(mfrow=c(1,1))
 
-lisa_q <- local_moran(queen_w, data.frame(regions.raw$response1))  # Default: 999 permutations
+lisa_q <- local_moran(queen_w, data.frame(regions.raw$response2))  # Default: 999 permutations
 
 regions.raw$clusters <- lisa_clusters(lisa_q)
 regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
@@ -1839,10 +1841,10 @@ lisa_labels <- lisa_labels(lisa_q)
 plot(regions$geometry.x, 
      col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
      border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
-title(main = "Local Moran Map of 1st wave response\n Queen neigbors criterion")
+title(main = "Local Moran Map of 2nd wave response\n Queen neigbors criterion")
 legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
 
-lisa_r <- local_moran(rook_w, data.frame(regions.raw$response1))  # Default: 999 permutations
+lisa_r <- local_moran(rook_w, data.frame(regions.raw$response2))  # Default: 999 permutations
 
 regions.raw$clusters <- lisa_clusters(lisa_r)
 regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
@@ -1854,14 +1856,14 @@ lisa_labels <- lisa_labels(lisa_r)
 plot(regions$geometry.x, 
      col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
      border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
-title(main = "Local Moran Map of 1st wave response\n Rook neigbors criterion")
+title(main = "Local Moran Map of 2nd wave response\n Rook neigbors criterion")
 legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
 
-#### LISA: Wave 1 cases ----
+#### LISA: Wave 2 cases ----
 
 par(mfrow=c(1,1))
 
-lisa_q <- local_moran(queen_w, data.frame(regions.raw$Cases_density_1))  # Default: 999 permutations
+lisa_q <- local_moran(queen_w, data.frame(regions.raw$Cases_density_2))  # Default: 999 permutations
 
 regions.raw$clusters <- lisa_clusters(lisa_q)
 regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
@@ -1873,10 +1875,10 @@ lisa_labels <- lisa_labels(lisa_q)
 plot(regions$geometry.x, 
      col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
      border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
-title(main = "Local Moran Map of 1st wave cases density\n Queen neigbors criterion")
+title(main = "Local Moran Map of 2nd wave cases density\n Queen neigbors criterion")
 legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
 
-lisa_r <- local_moran(rook_w, data.frame(regions.raw$Cases_density_1))  # Default: 999 permutations
+lisa_r <- local_moran(rook_w, data.frame(regions.raw$Cases_density_2))  # Default: 999 permutations
 
 regions.raw$clusters <- lisa_clusters(lisa_r)
 regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
@@ -1888,5 +1890,5 @@ lisa_labels <- lisa_labels(lisa_r)
 plot(regions$geometry.x, 
      col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
      border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
-title(main = "Local Moran Map of 1st wave cases density\n Rook neigbors criterion")
+title(main = "Local Moran Map of 2nd wave cases density\n Rook neigbors criterion")
 legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
