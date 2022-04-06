@@ -909,6 +909,7 @@ library(glmnet)  # LASSO selection
 library(gstat)  # Geostatistics (variogram)
 library(sp)  # Data management
 library(rgeoda)  # LISA clustering
+library(openxlsx)  # Read excel for national totals
 
 ## Load data
 
@@ -964,6 +965,7 @@ setwd('/home/fpjaa/Documents/GitHub/geostats-covid/')
 #### Map plots ----
 
 # Uncoloured map
+par(mfrow=c(1,1))
 par(mar=c(2,4,2,4)+0.1)  # BLTR
 plot(nuts_polyg$geometry, xlim=c(-20,30), ylim=c(25,60))
 
@@ -1000,9 +1002,46 @@ plot(nuts_polyg_tagged$geometry, col = mycolourscheme,
 legend("topleft", legend = levels(tags), col = my_colors, pch=1, cex=0.9,
        title="Cases density (wave 2)")
 
+dataset <- na.omit(dataset)
+
+# Waves 1 and 2 initial configuration
+my_colors <- c(heat.colors(6, alpha = 1))[c(6,5,4,3,2)]
+nuts_polyg_tagged <- merge(nuts_polyg[,c(1,7)], dataset[,c(1,25,26)], by="NUTS", all=TRUE)
+
+mybreaks <- seq(from = min(dataset$Cases_density_1)-0.000001,
+                to = max(dataset$Cases_density_1)+0.00001,
+                length.out = 6)
+
+tags <- cut(nuts_polyg_tagged$Cases_density_1, mybreaks)
+
+nuts_polyg_tagged$mycolourscheme <- my_colors[findInterval(nuts_polyg_tagged$Cases_density_1, vec = mybreaks)]
+
+# Wave 1 plot
+plot(nuts_polyg_tagged$geometry, col = nuts_polyg_tagged$mycolourscheme,
+     xlim=c(-18,20), ylim=c(25,63))
+legend("topleft", legend = levels(tags), col = my_colors, pch=1, cex=0.9,
+       title="Cases density (wave 1)")
+
+# Wave 2 settings counting on work from wave 1
+mybreaks <- seq(from = min(dataset$Cases_density_2)-0.0000001,
+                to = max(dataset$Cases_density_2)+0.00001,
+                length.out = 6)
+
+tags <- cut(nuts_polyg_tagged$Cases_density_2, mybreaks)
+
+mycolourscheme <- my_colors[findInterval(nuts_polyg_tagged$Cases_density_2, vec = mybreaks)]
+
+# Wave 2 plot
+plot(nuts_polyg_tagged$geometry, col = mycolourscheme,
+     xlim=c(-18,20), ylim=c(25,63))
+legend("topleft", legend = levels(tags), col = my_colors, pch=1, cex=0.9,
+       title="Cases density (wave 2)")
+
 rm(my_colors, mybreaks, mycolourscheme, tags)
 
-#### Transformation of response ----
+#### Plots of 86 rows ----
+
+## Transformations
 
 # Box-Cox requires x>0, we need a transform for [0,1[
 # Ln, Sqrt, ()^-1 are not viable either
@@ -1034,20 +1073,20 @@ hist(qlogis(dataset$Cases_density_1), breaks=16, col="grey", main='Histogram of 
 # power transform
 #hist((dataset$Cases_density_1)^(1/3), breaks=16, col="grey", main='Histogram of (W1_cases)^1/3', prob = TRUE, xlab = '(W1_cases)^1/3')
 
-par(mfrow=c(2,3))
+par(mfrow=c(1,2))
 # histogram
 hist(dataset$Cases_density_2, breaks=16, col="grey", main='Histogram of wave 2 cases', prob = TRUE, xlab = 'Cases density')
 # highly skewed, transform to the log
-hist(log10(dataset$Cases_density_2+1), breaks=16, col="grey", main='Histogram of log(W2_cases+1)', prob = TRUE, xlab = 'log(W2_cases)')
+#hist(log10(dataset$Cases_density_2+1), breaks=16, col="grey", main='Histogram of log(W2_cases+1)', prob = TRUE, xlab = 'log(W2_cases)')
 # power transform
-hist(sqrt(dataset$Cases_density_2), breaks=16, col="grey", main='Histogram of sqrt(W2_cases)', prob = TRUE, xlab = 'sqrt(W2_cases)')
+#hist(sqrt(dataset$Cases_density_2), breaks=16, col="grey", main='Histogram of sqrt(W2_cases)', prob = TRUE, xlab = 'sqrt(W2_cases)')
 # logit transform
-hist(qlogis(dataset$Cases_density_2), breaks=16, col="grey", main='Histogram of logit(W2_cases)', prob = TRUE, xlab = 'logit(W2_cases)')
+#hist(qlogis(dataset$Cases_density_2), breaks=16, col="grey", main='Histogram of logit(W2_cases)', prob = TRUE, xlab = 'logit(W2_cases)')
 # Z transform
-w1.z <- (dataset$Cases_density_2 - mean(dataset$Cases_density_2))/sd(dataset$Cases_density_2)
-hist(w1.z, breaks=16, col="grey", main='Histogram of Z(W2_cases)', prob = TRUE, xlab = 'Z(W2_cases)')
+w2.z <- (dataset$Cases_density_2 - mean(dataset$Cases_density_2))/sd(dataset$Cases_density_2)
+hist(w2.z, breaks=16, col="grey", main='Histogram of Z(W2_cases)', prob = TRUE, xlab = 'Z(W2_cases)')
 # power transform
-hist((dataset$Cases_density_2)^(1/3), breaks=16, col="grey", main='Histogram of (W2_cases)^1/3', prob = TRUE, xlab = '(W2_cases)^1/3')
+#hist((dataset$Cases_density_2)^(1/3), breaks=16, col="grey", main='Histogram of (W2_cases)^1/3', prob = TRUE, xlab = '(W2_cases)^1/3')
 
 
 # https://chrischizinski.github.io/SNR_R_Group/2016-08-10-Data-Transformations
@@ -1056,7 +1095,30 @@ hist((dataset$Cases_density_2)^(1/3), breaks=16, col="grey", main='Histogram of 
 ## diagnostics for logistic regression are different from OLS regression
 ## we'll work with the residuals so it can be problematic
 
-rm(w1.z)
+rm(w2.z)
+
+## Regions by country
+
+setwd('/home/fpjaa/Documents/GitHub/geostats-covid/datasets_by_country/')
+
+names <- read.xlsx('air_passengers_by_country.xlsx', sheet=3)
+names <- names[8:37,c(1,2)]
+colnames(names) <- c('Country', 'Name')
+
+counter <- merge(dataset[,c('NUTS', 'Country')], names, by = "Country")
+counter$Name <- replace(counter$Name, counter$Name=="Germany (until 1990 former territory of the FRG)", "Germany")
+par(mar=c(4,8,4,4)+0.1)  # BLTR
+barplot(table(counter$Name),
+        main = "Regions by country",
+        xlab = "Country",
+        ylab = "",
+        col = "darkblue",
+        las = 1,
+        cex.names = 1,
+        horiz = TRUE,
+        xpd = FALSE)
+
+rm(counter, names)
 
 #### LASSO ----
 
@@ -1070,17 +1132,9 @@ coeff2dt <- function(fitobject, s) {
 
 #### Wave 1 ----
 
+setwd('/home/fpjaa/Documents/GitHub/geostats-covid/Wave1')
+
 dataset$response1 <- qlogis(dataset$Cases_density_1)
-#qlogis(dataset$Cases_density_1)
-## intercept is largest, 9 features
-#sqrt(dataset$Cases_density_1)
-##worse than logit
-#log10(dataset$Cases_density_1+1)
-##all betas 0
-#(dataset$Cases_density_1 - mean(dataset$Cases_density_1))/sd(dataset$Cases_density_1)
-## fails Shapiro
-#(dataset$Cases_density_1)^(1/3)
-##same as sqrt
 
 # Build the matrix of predictors
 options(na.action='na.omit')
@@ -1108,15 +1162,9 @@ x <- model.matrix(response1 ~ Air_passengers+
                     Unemployment_rate+
                     Utilised_agricultural_area+
                     NEET_rate, data=dataset)[,-1]
-# Currently 86 valid rows
 
 # Build the vector of response
-y <- dataset[row.names(x),]$response1
-
-par(mfrow=c(1,2))
-par(mar=c(2,6,2,4)+0.1)  # BLTR
-hist(dataset[row.names(x),]$Cases_density_1, breaks=16, col="grey", main='Histogram of wave 1 cases', prob = TRUE, xlab = 'Cases density')
-hist(dataset[row.names(x),]$response1, breaks=16, col="grey", main='Histogram of logit cases', prob = TRUE, xlab = 'logit(W1_cases)')
+y <- dataset$response1
 
 # Let's set a grid of candidate lambda's for the estimate
 lambda.grid <- c(0,10^seq(2,-3,length=100))
@@ -1145,70 +1193,34 @@ barplot(coeffs.table$coefficient[1:(length(coeffs.table[,1])-1)],
 labs <- gsub("_", " ", coeffs.table$name[1:(length(coeffs.table[,1])-1)])
 legend('topright', labs, col =  rainbow(length(coeffs.table[,1])-1), lty=1, cex=0.8, ncol=2)
 
-dataset <- dataset[row.names(x),]
-
-rm(x, y, fit.lasso, cv.lasso, bestlam.lasso, lambda.grid, labs)
-
 #### Wave 1 residuals -----------------
 
-# Assumption: Eps ~ N(0, sigma^2)
+fitted_values <- predict(cv.lasso, x, s = 'lambda.min')
 
-# Logit transform
-fm1 <- lm(response1 ~ Air_passengers+
-            Hospital_beds+
-            Death_rate+
-            Compensation_of_employees+
-            #Deaths+
-            Early_leavers_from_ed.+
-            Employment_worked_hrs.+
-            Farm_labour_force+
-            #Health_personnel+
-            Respiratory_discharges+
-            Life_expectancy+
-            Longterm_care_beds+
-            #Gross_domestic_product+
-            Ed._participation+
-            Population_density+
-            Population+
-            Pupils_enrolled+
-            GVA_growth+
-            Vehicles+
-            Tertiary_ed._students+
-            #Unemployment_rate+
-            #Utilised_agricultural_area+
-            NEET_rate, data=dataset)
+dataset$residuals1 <- y - fitted_values
 
-coeffs <- sort(fm1[["coefficients"]], decreasing = TRUE)
+shapiro.test(dataset$residuals1)
 
-par(mfrow=c(1,1))
-par(mar=c(4,6,4,6)+0.1)  # BLTR
-barplot(as.numeric(coeffs)[1:(length(coeffs)-1)],
-        col = rainbow(length(coeffs)-1),
-        main = "Coefficients of selected model")
-labs <- gsub("_", " ", names(coeffs)[1:(length(coeffs)-1)])
-legend('topright', labs, col =  rainbow(length(coeffs)-1), lty=1, cex=0.8, ncol=2)
+par(mar=c(6,6,4,4)+0.1)  # BLTR
+hist(dataset$residuals1, breaks = 15,
+     main = "Histogram of model residuals",
+     xlab = "Residuals")
+#qqplot(dataset$residuals1)
 
-par(mfrow=c(2,2))
-par(mar=c(4,6,4,2)+0.5)  # BLTR
-plot(fm1)
-
-shapiro.test(residuals(fm1))
-
-resid_w1 <- data.frame(residuals(fm1))
-resid_w1 <- merge(dataset[, c('NUTS', 'Latitude', 'Longitude')], resid_w1, by=0)
+resid_w1 <- dataset[, c('NUTS', 'residuals1', 'Latitude', 'Longitude')]
 
 # Map plot
 # Residuals configuration
-mybreaks <- c(min(resid_w1$residuals.fm1., na.rm = TRUE)-0.0001,
-              min(resid_w1$residuals.fm1., na.rm = TRUE)/2,
+mybreaks <- c(min(resid_w1$residuals1, na.rm = TRUE)-0.0001,
+              min(resid_w1$residuals1, na.rm = TRUE)/2,
               0,
-              max(resid_w1$residuals.fm1., na.rm = TRUE)/2,
-              max(resid_w1$residuals.fm1., na.rm = TRUE)+0.0001)
+              max(resid_w1$residuals1, na.rm = TRUE)/2,
+              max(resid_w1$residuals1, na.rm = TRUE)+0.0001)
 my_colors <- c('#0000ff', '#6495ed', '#f08080', '#ff0000')
 
-nuts_polyg_tagged <- merge(nuts_polyg[,c(1,7)], resid_w1[,c(2,5)], by="NUTS", all=TRUE)
-tags <- cut(nuts_polyg_tagged$residuals.fm1., mybreaks)
-mycolourscheme <- my_colors[findInterval(nuts_polyg_tagged$residuals.fm1., vec = mybreaks)]
+nuts_polyg_tagged <- merge(nuts_polyg[,c(1,7)], resid_w1[,c('NUTS', 'residuals1')], by="NUTS", all=TRUE)
+tags <- cut(nuts_polyg_tagged$residuals1, mybreaks)
+mycolourscheme <- my_colors[findInterval(nuts_polyg_tagged$residuals1, vec = mybreaks)]
 
 # Wave 1 plot
 par(mfrow=c(1,1))
@@ -1238,402 +1250,111 @@ legend("topleft", legend = levels(tags), col = my_colors, pch=1, cex=0.9,
 
 resid_w1$Latitude <- as.numeric(resid_w1$Latitude)
 resid_w1$Longitude <- as.numeric(resid_w1$Longitude)
-resid_w1$residuals.fm1. <- as.numeric(resid_w1$residuals.fm1.)
+resid_w1$residuals1 <- as.numeric(resid_w1$residuals1)
 
 # Extract data in case of anisotropy
-setwd('/home/fpjaa/Documents/GitHub/geostats-covid/')
-write.csv(resid_w1[, c('NUTS', 'Latitude', 'Longitude', 'residuals.fm1.')], 'residuals_w1.csv')
-write.csv(dataset[, c('NUTS', 'Cases_density_1', 'response1')], 'dataset_w1.csv')
+write.csv(dataset[, c('NUTS', 'Latitude', 'Longitude', 'Cases_density_1', 'response1', 'residuals1')], 'wave1.csv')
 
-coordinates(resid_w1) <- c('Latitude','Longitude')
-
-# sample variogram (binned estimator)
-samp_vgm <- variogram(residuals.fm1. ~ 1, data=resid_w1)
-plot(samp_vgm, main = 'Sample Variogram', pch=19)
-# "~ 1" stands for a single constant predictor (hp: spatially constant mean)
-# automatically decides to ignore direction: point pairs are merged on the
-# basis of distance to compute the empirical variogram
-
-# residual variogram w.r.t. a linear trend:
-res_vgm <- variogram(residuals.fm1.~Latitude+Longitude, data=resid_w1)
-plot(res_vgm, main = 'Residual Variogram', pch=19)
-# automatically decides to ignore direction: point pairs are merged on the
-# basis of distance to compute the empirical variogram
-
-# default decisions: direction dependence, cutoff, lag width
-
-plot(variogram(residuals.fm1. ~ 1, data=resid_w1,
-               alpha = c(0, 45, 90, 135)), pch=19, main = 'Sample Variogram')
-# point pairs whose separation vector has a given direction are used in each
-# panel (not too many directions otherwise noise will increase)
-# Note: zonal anisotropy
-
-plot(variogram(residuals.fm1.~Longitude, data=resid_w1,
-               alpha = c(0, 45, 90, 135)), pch=19, main = 'Residual Variogram')
-# point pairs whose separation vector has a given direction are used in each
-# panel (not too many directions otherwise noise will increase)
-# Note: zonal anisotropy
-
-# cutoff distance: maximum distance up to which point pairs are considered
-#                  (default = bbox diagonal / 3)
-# lag width: width of distance intervals over which point pairs are averaged
-#            in bins (default = cutoff distance / 15)
-
-coff <- 14  # min 10, best 14, max 17 (fit)
-
-plot(variogram(residuals.fm1. ~ 1, data=resid_w1), pch=19, main = 'Sample Variogram')
-
-plot(variogram(residuals.fm1. ~ Longitude, data=resid_w1), pch=19, main = 'Residual Variogram')
-
-plot(variogram(residuals.fm1. ~ 1, data=resid_w1,
-               cutoff = coff, width = coff/15), pch=19, main = paste('Sample Variogram, cutoff =',coff))
-
-plot(variogram(residuals.fm1. ~ Longitude, data=resid_w1,
-               cutoff = coff, width = coff/15), pch=19, main = paste('Residual Variogram, cutoff =',coff))
-
-plot(variogram(residuals.fm1.~Longitude, data=resid_w1,
-               alpha = c(0, 45, 90, 135),
-               cutoff = coff, width = coff/15), pch=19, main = 'Directional Residual Variogram')
-
-
-rm(fm1, coeffs.table, coeffs, samp_vgm, res_vgm,
+rm(coeffs.table, cv.lasso, fit.lasso, fitted_values, x, y,
+   bestlam.lasso, lambda.grid,
    nuts_polyg_tagged, labs, my_colors, mybreaks, mycolourscheme, tags)
 
 #### Variogram modeling ----
 
-setwd('/home/fpjaa/Documents/GitHub/geostats-covid/')
-resid_w1 <- read.csv("residuals_w1.csv", header=TRUE, stringsAsFactors=FALSE)
+resid_w1 <- read.csv("wave1.csv", header=TRUE, stringsAsFactors=FALSE)
+resid_w1 <- resid_w1[, c('Latitude', 'Longitude', 'residuals1')]
 resid_w1$Latitude <- as.numeric(resid_w1$Latitude)
 resid_w1$Longitude <- as.numeric(resid_w1$Longitude)
-resid_w1$residuals.fm1. <- as.numeric(resid_w1$residuals.fm1.)
+resid_w1$residuals1 <- as.numeric(resid_w1$residuals1)
 coordinates(resid_w1) <- c('Latitude','Longitude')
+proj4string(resid_w1) <- CRS("+init=epsg:4326")
+resid_proj <- spTransform(resid_w1, CRS("+proj=longlat +datum=WGS84"))
 
-coff <- 14
+coff <- 1900
 
-var_resid <- gstat(formula = residuals.fm1. ~ Longitude, data=resid_w1, id = 'Residuals')
+plot(variogram(residuals1 ~ 1, data=resid_w1), pch=19, main = 'Sample Variogram')
 
-v <- variogram(var_resid,
+plot(variogram(residuals1 ~ Longitude, data=resid_w1), pch=19, main = 'Residual Variogram')
+
+plot(variogram(residuals1 ~ 1, data=resid_w1,
+               cutoff = coff, width = coff/15), pch=19, main = paste('Sample Variogram, cutoff =',coff))
+
+plot(variogram(residuals1 ~ Longitude, data=resid_w1,
+               cutoff = coff, width = coff/15), pch=19, main = paste('Residual Variogram, cutoff =',coff))
+
+plot(variogram(residuals1 ~ Longitude, data=resid_w1,
+               alpha = c(0, 45, 90, 135),
+               cutoff = coff, width = coff/15), pch=19, main = 'Directional Residual Variogram')
+
+plot(variogram(residuals1 ~ Longitude, data=resid_w1,
                cutoff = coff, width = coff/15,
-               map = TRUE)
+               map = TRUE))
 
 ## weighted least squares fitting a variogram model to the sample variogram
 ## STEPS:
 ## 1) choose a suitable model
-plot(v)
-
-v <- variogram(residuals.fm1. ~ Longitude, data=resid_w1,
+v <- variogram(residuals1 ~ Longitude, data=resid_w1,
                cutoff = coff, width = coff/15)
+
 #vgm()
 ## 2) choose suitable initial values for partial sill, range & nugget
-v.fit1 <- fit.variogram(v, vgm(1, "Exp", 5, 5))
-v.fit2 <- fit.variogram(v, vgm(1, "Sph", 5, 5))
-v.fit3 <- fit.variogram(v, vgm(1, "Bes", 5, 5))
+v.fit1 <- fit.variogram(v, vgm(1, "Exp", 500, 500))
+v.fit2 <- fit.variogram(v, vgm(1, "Sph", 500, 500))
+v.fit3 <- fit.variogram(v, vgm(1, "Gau", 500, 500))
 
 ## 3) fit the model using one of the possible fitting criteria
 
 plot(v, v.fit1, pch = 19, main="Exponential model")
 plot(v, v.fit2, pch = 19, main="Spherical model")
-plot(v, v.fit3, pch = 19, main="Bessel model")
+plot(v, v.fit3, pch = 19, main="Gaussian model")
 
 ## Problem: Anisotropy: alpha = 0, 45, 90, 135
 
-v <- variogram(residuals.fm1. ~ Longitude, data=resid_w1,
+v <- variogram(residuals1 ~ Longitude, data=resid_w1,
                cutoff = coff, width = coff/15, alpha = c(0, 45, 90, 135))
 
 plot(v, v.fit1, pch = 19, main="Exponential model")
 plot(v, v.fit2, pch = 19, main="Spherical model")
-plot(v, v.fit3, pch = 19, main="Bessel model")
+plot(v, v.fit3, pch = 19, main="Gaussian model")
 
-# Validation: MSE
-
-errors <- data.frame(matrix(ncol = 3, nrow = length(resid_w1)))
-for (n in 1:length(resid_w1)){
-  x_grid <- resid_w1[-n,]  # Discard the value to evaluate
-  x_newdata <- resid_w1[n,]  # Value to validate
-  x_krig <- krige0(residuals.fm1. ~ Longitude,
-                  data = x_grid, newdata = x_newdata,
-                  model = v.fit1)
-  errors[n,1] <- (x_krig - x_newdata@data[["residuals.fm1."]])^2
-}
-for (n in 1:length(resid_w1)){
-  x_grid <- resid_w1[-n,]  # Discard the value to evaluate
-  x_newdata <- resid_w1[n,]  # Value to validate
-  x_krig <- krige0(residuals.fm1. ~ Longitude,
-                   data = x_grid, newdata = x_newdata,
-                   model = v.fit2)
-  errors[n,2] <- (x_krig - x_newdata@data[["residuals.fm1."]])^2
-}
-for (n in 1:length(resid_w1)){
-  x_grid <- resid_w1[-n,]  # Discard the value to evaluate
-  x_newdata <- resid_w1[n,]  # Value to validate
-  x_krig <- krige0(residuals.fm1. ~ Longitude,
-                   data = x_grid, newdata = x_newdata,
-                   model = v.fit3)
-  errors[n,3] <- (x_krig - x_newdata@data[["residuals.fm1."]])^2
-}
-
-apply(errors, 2, mean)  # LOO-MSE by model, wins Spherical
-
-# Goodness of Fit: Residual sum of squares, wins Bessel
+# Goodness of Fit: Residual sum of squares, wins Sph
 c(attributes(v.fit1)$SSErr, attributes(v.fit2)$SSErr, attributes(v.fit3)$SSErr)
 
 # Make sure they converged
 c(attributes(v.fit1)$singular, attributes(v.fit2)$singular, attributes(v.fit3)$singular)
 
-rm(resid_w1, var_resid, v, v.fit1, v.fit2, v.fit3, coff,
-   x_grid, x_newdata, x_krig, n)
+# calculate generalised least squares residuals
+par(mfrow = c(1,3))
 
-#### Wave 2 ----
+g1 <- gstat(NULL, "exp", residuals1 ~ Longitude,
+           data = resid_w1, model = v.fit1)
+blue1 <- predict(g1, newdata = resid_w1, BLUE = TRUE)
+blue1$blue.res <- resid_w1$residuals1 - blue1$exp.pred
+exp.box <- boxplot(blue1$blue.res, main = "GLS residuals for Exp model")
+summary(blue1$blue.res)
 
-dataset$response2 <- (dataset$Cases_density_2 - mean(dataset$Cases_density_2))/sd(dataset$Cases_density_2)
-#qlogis(dataset$Cases_density_2)
-## doesnt work
-#sqrt(dataset$Cases_density_2)
-## not better than Z transform
-#log10(dataset$Cases_density_2)
-## doesnt work
-#(dataset$Cases_density_2 - mean(dataset$Cases_density_2))/sd(dataset$Cases_density_2)
-## nice
-#(dataset$Cases_density_2)^(1/3)
-## bad
+g2 <- gstat(NULL, "sph", residuals1 ~ Longitude,
+            data = resid_w1, model = v.fit2)
+blue2 <- predict(g2, newdata = resid_w1, BLUE = TRUE)
+blue2$blue.res <- resid_w1$residuals1 - blue2$sph.pred
+sph.box <- boxplot(blue2$blue.res, main = "GLS residuals for Sph model")
+summary(blue2$blue.res)
 
-# Build the matrix of predictors
-options(na.action='na.omit')
-#options(na.action='na.pass')
-x <- model.matrix(response2 ~ Air_passengers+
-                    Hospital_beds+
-                    Death_rate+
-                    Compensation_of_employees+
-                    Deaths+
-                    Early_leavers_from_ed.+
-                    Employment_worked_hrs.+
-                    Farm_labour_force+
-                    Health_personnel+
-                    Respiratory_discharges+
-                    Life_expectancy+
-                    Longterm_care_beds+
-                    Gross_domestic_product+
-                    Ed._participation+
-                    Population_density+
-                    Population+
-                    Pupils_enrolled+
-                    GVA_growth+
-                    Vehicles+
-                    Tertiary_ed._students+
-                    Unemployment_rate+
-                    Utilised_agricultural_area+
-                    NEET_rate, data=dataset)[,-1]
-# Build the vector of response
-y <- dataset[row.names(x),]$response2
+g3 <- gstat(NULL, "gau", residuals1 ~ Longitude,
+            data = resid_w1, model = v.fit3)
+blue3 <- predict(g3, newdata = resid_w1, BLUE = TRUE)
+blue3$blue.res <- resid_w1$residuals1 - blue3$gau.pred
+gau.box <- boxplot(blue3$blue.res, main = "GLS residuals for Gau model")
+summary(blue3$blue.res)
 
-# Let's set a grid of candidate lambda's for the estimate
-lambda.grid <- c(0,10^seq(2,-3,length=100))
-fit.lasso <- glmnet(x,y, lambda = lambda.grid) # default: alpha=1 -> lasso
+rm(resid_w1, resid_proj, v, v.fit1, v.fit2, v.fit3, coff,
+   blue1, blue2, blue3, g1, g2, g3, exp.box, sph.box, gau.box)
 
-par(mfrow=c(1,1))
-plot(fit.lasso, xvar='lambda', label=TRUE, col = rainbow(dim(x)[2]))
-labs <- gsub("_", " ", dimnames(x)[[2]])
-legend('topright', dimnames(x)[[2]], col =  rainbow(dim(x)[2]), lty=1, cex=0.7, ncol=2)
+#### LISA setting ----
 
-# Let's set lambda via cross validation
-cv.lasso <- cv.glmnet(x,y,lambda=lambda.grid) # default: 10-fold CV
-
-bestlam.lasso <- cv.lasso$lambda.min
-bestlam.lasso
-
-plot(cv.lasso)
-
-coeffs.table <- coeff2dt(fitobject = cv.lasso, s = 'lambda.min')
-
-barplot(coeffs.table$coefficient[1:(length(coeffs.table[,1])-1)],
-        col = rainbow(length(coeffs.table[,1])-1),
-        main = "Coefficients of selected model")
-labs <- gsub("_", " ", coeffs.table$name[1:(length(coeffs.table[,1])-1)])
-legend('topright', labs, col=rainbow(length(coeffs.table[,1])-1), lty=1, cex=0.8, ncol=2)
-
-rm(x, y, fit.lasso, cv.lasso, bestlam.lasso, lambda.grid, labs)
-
-#### Wave 2 residuals -----------------
-
-#library(MASS)
-#library(car)
-
-# Assumption: Eps ~ N(0, sigma^2)
-
-# Logit transform: Too low
-# Cubic and square root transform: Too low
-
-# Z transform: Good
-fm2 <- lm(response2 ~ #Air_passengers+
-            Hospital_beds+
-            Death_rate+
-            Compensation_of_employees+
-            #Deaths+
-            #Early_leavers_from_ed.+
-            #Employment_worked_hrs.+
-            Farm_labour_force+
-            Health_personnel+
-            Respiratory_discharges+
-            Life_expectancy+
-            #Longterm_care_beds+
-            #Gross_domestic_product+
-            Ed._participation+
-            Population_density+
-            #Population+
-            #Pupils_enrolled+
-            GVA_growth+
-            #Vehicles+
-            Unemployment_rate+
-            #Utilised_agricultural_area+
-            NEET_rate, data=dataset)
-
-coeffs <- sort(fm2[["coefficients"]], decreasing = TRUE)
-
-par(mfrow=c(1,1))
-par(mar=c(4,6,4,6)+0.1)  # BLTR
-barplot(as.numeric(coeffs)[1:(length(coeffs)-1)],
-        col = rainbow(length(coeffs)-1),
-        main = "Coefficients of selected model")
-labs <- gsub("_", " ", names(coeffs)[1:(length(coeffs)-1)])
-legend('topright', labs, col=rainbow(length(coeffs)-1), lty=1, cex=0.8, ncol=2)
-
-par(mfrow=c(2,2))
-par(mar=c(4,6,4,2)+0.5)  # BLTR
-plot(fm2)
-
-shapiro.test(residuals(fm2))
-
-resid_w2 <- data.frame(residuals(fm2))
-resid_w2 <- merge(dataset[row.names(resid_w2), c('NUTS', 'Latitude', 'Longitude')], resid_w2, by=0)
-
-# Map plot
-# Waves 1 and 2 initial configuration
-mybreaks <- c(seq(from = min(resid_w2$residuals.fm2.),
-                  to = max(resid_w2$residuals.fm2.),
-                  length.out = 5))
-my_colors <- c('#0000ff', '#6495ed', '#f08080', '#ff0000')
-
-nuts_polyg_tagged <- merge(nuts_polyg[,c(1,7)], resid_w2[,c(2,5)], by="NUTS", all=TRUE)
-tags <- cut(nuts_polyg_tagged$residuals.fm2., mybreaks)
-mycolourscheme <- my_colors[findInterval(nuts_polyg_tagged$residuals.fm2., vec = mybreaks)]
-
-# Wave 2 plot
-par(mfrow=c(1,1))
-par(mar=c(2,4,2,4)+0.1)  # BLTR
-plot(nuts_polyg_tagged$geometry, col = mycolourscheme,
-     xlim=c(-18,20), ylim=c(25,63))
-legend("topleft", legend = levels(tags), col = my_colors, pch=1, cex=0.9,
-       title="Residuals (wave 2)")
-
-resid_w2$Latitude <- as.numeric(resid_w2$Latitude)
-resid_w2$Longitude <- as.numeric(resid_w2$Longitude)
-resid_w2$residuals.fm2. <- as.numeric(resid_w2$residuals.fm2.)
-
-# Extract data in case of anisotropy
-setwd('/home/fpjaa/Documents/GitHub/geostats-covid/')
-write.csv(resid_w2[, c('Latitude', 'Longitude', 'residuals.fm2.')], 'residuals_w2.csv')
-
-resid_w2$Row.names <- as.numeric(resid_w2$Row.names)
-coordinates(resid_w2) <- c('Latitude','Longitude')
-
-# sample variogram (binned estimator)
-samp_vgm <- variogram(residuals.fm2. ~ 1, data=resid_w2)
-plot(samp_vgm, main = 'Sample Variogram', pch=19)
-# "~ 1" stands for a single constant predictor (hp: spatially constant mean)
-# automatically decides to ignore direction: point pairs are merged on the
-# basis of distance to compute the empirical variogram
-
-# residual variogram w.r.t. a linear trend:
-res_vgm <- variogram(residuals.fm2.~Latitude+Longitude, data=resid_w2)
-plot(res_vgm, main = 'Residual Variogram', pch=19)
-# automatically decides to ignore direction: point pairs are merged on the
-# basis of distance to compute the empirical variogram
-
-# default decisions: direction dependence, cutoff, lag width
-
-plot(variogram(residuals.fm2. ~ 1, data=resid_w2,
-               alpha = c(0, 45, 90, 135)), pch=19, main = 'Sample Variogram')
-# point pairs whose separation vector has a given direction are used in each
-# panel (not too many directions otherwise noise will increase)
-# Note: zonal anisotropy
-
-plot(variogram(residuals.fm2. ~ Latitude+Longitude, data=resid_w2,
-               alpha = c(0, 45, 90, 135)), pch=19, main = 'Residual Variogram')
-# point pairs whose separation vector has a given direction are used in each
-# panel (not too many directions otherwise noise will increase)
-# Note: zonal anisotropy
-
-# cutoff distance: maximum distance up to which point pairs are considered
-#                  (default = bbox diagonal / 3)
-# lag width: width of distance intervals over which point pairs are averaged
-#            in bins (default = cutoff distance / 15)
-
-coff <- 12
-
-plot(variogram(residuals.fm2. ~ 1, data=resid_w2,
-               cutoff = coff, width = coff/15), pch=19, main = paste('Sample Variogram, cutoff =',coff))
-
-plot(variogram(residuals.fm2. ~ Latitude+Longitude, data=resid_w2,
-               cutoff = coff, width = coff/15), pch=19, main = paste('Residual Variogram, cutoff =',coff))
-
-rm(fm2, choice, coeffs, n, labs, coeff2dt,
-   nuts_polyg_tagged, samp_vgm, res_vgm)
-
-#### Variogram modeling ----
-
-setwd('/home/fpjaa/Documents/GitHub/geostats-covid/')
-resid_w2 <- read.csv("residuals_w2.csv", header=TRUE, stringsAsFactors=FALSE)
-resid_w2$Latitude <- as.numeric(resid_w2$Latitude)
-resid_w2$Longitude <- as.numeric(resid_w2$Longitude)
-resid_w2$residuals.fm2. <- as.numeric(resid_w2$residuals.fm2.)
-coordinates(resid_w2) <- c('Latitude','Longitude')
-
-coff <- 12
-
-v <- variogram(residuals.fm2. ~ 1, data=resid_w2,
-               cutoff = coff, width = coff/15, map = TRUE)
-
-## weighted least squares fitting a variogram model to the sample variogram
-## STEPS:
-## 1) choose a suitable model
-plot(v, multipanel = TRUE, plot.numbers = TRUE)
-## weighted least squares fitting a variogram model to the sample variogram
-## STEPS:
-## 1) choose a suitable model
-#vgm()
-v <- variogram(residuals.fm2. ~ 1, data=resid_w2,
-               cutoff = coff, width = coff/15)
-## 2) choose suitable initial values for partial sill, range & nugget
-v.fit1 <- fit.variogram(v, vgm(1, "Exp", 5, 5))
-v.fit2 <- fit.variogram(v, vgm(1, "Sph", 5, 5))
-v.fit3 <- fit.variogram(v, vgm(1, "Gau", 5, 5))
-
-## 3) fit the model using one of the possible fitting criteria
-
-plot(v, v.fit1, pch = 19, main="Exponential model")
-plot(v, v.fit2, pch = 19, main="Spherical model")
-plot(v, v.fit3, pch = 19, main="Gaussian model")
-
-# Validation: reproduce the experimental values
-
-## TO DO
-
-v <- variogram(residuals.fm2. ~ 1, data=resid_w2,
-               cutoff = coff, width = coff/15, alpha = c(0, 45, 90, 135))
-plot(v, v.fit1, pch = 19, main="Exponential model")
-plot(v, v.fit2, pch = 19, main="Spherical model")
-plot(v, v.fit3, pch = 19, main="Gaussian model")
-
-rm(resid_w2, v, v.fit1, v.fit2, v.fit3, coff)
-
-#### LISA: Wave 1 residuals ----
-
-setwd('/home/fpjaa/Documents/GitHub/geostats-covid/')
-resid_w1 <- read.csv("residuals_w1.csv", header=TRUE, stringsAsFactors=FALSE)
-resid_w1$residuals.fm1. <- as.numeric(resid_w1$residuals.fm1.)
-
-regions.raw <- merge(resid_w1[,c(2,5)], nuts_polyg[,c(1,7)], by="NUTS")
-regions <- st_as_sf(regions.raw[,c(1,3)])
+dataset <- read.csv("wave1.csv", header=TRUE, stringsAsFactors=FALSE)
+regions.raw <- merge(dataset, nuts_polyg[,c(1,7)], by="NUTS")
+regions <- st_as_sf(regions.raw[,c('NUTS', 'geometry')])
 
 # Queen criterion defines neighbors as spatial units sharing a common edge/vertex
 queen_w <- queen_weights(regions)
@@ -1655,10 +1376,12 @@ summary(rook_w)  # Not very different from Queen
 #knn_w <- knn_weights(regions, 5)
 #summary(knn_w)
 
+#### Wave 1 residuals ----
+
 par(mfrow=c(1,1))
 par(mar=c(2,4,4,4)+0.1)  # BLTR
 
-lisa_q <- local_moran(queen_w, data.frame(regions.raw$residuals.fm1.))  # Default: 999 permutations
+lisa_q <- local_moran(queen_w, data.frame(regions.raw$residuals1))  # Default: 999 permutations
 #fdr <- lisa_fdr(lisa_q, 0.05)  # False Discovery Rate, can use as cutoff for clusters
 
 regions.raw$clusters <- lisa_clusters(lisa_q)
@@ -1674,7 +1397,7 @@ plot(regions$geometry.x,
 title(main = "Local Moran Map of 1st wave residuals\n Queen neigbors criterion")
 legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
 
-lisa_r <- local_moran(rook_w, data.frame(regions.raw$residuals.fm1.))  # Default: 999 permutations
+lisa_r <- local_moran(rook_w, data.frame(regions.raw$residuals1))  # Default: 999 permutations
 #fdr <- lisa_fdr(lisa, 0.05)  # False Discovery Rate, can use as cutoff for clusters
 
 regions.raw$clusters <- lisa_clusters(lisa_r)
@@ -1720,19 +1443,387 @@ legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", 
 
 #### LISA: Wave 1 responses ----
 
-setwd('/home/fpjaa/Documents/GitHub/geostats-covid/')
-dataset <- read.csv("dataset_w1.csv", header=TRUE, stringsAsFactors=FALSE)
+par(mfrow=c(1,1))
 
-regions.raw <- merge(dataset[,c(2,4)], nuts_polyg[,c(1,7)], by="NUTS")
-regions <- st_as_sf(regions.raw[,c(1,3)])
+lisa_q <- local_moran(queen_w, data.frame(regions.raw$response1))  # Default: 999 permutations
+
+regions.raw$clusters <- lisa_clusters(lisa_q)
+regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
+regions$clusters <- replace(regions$clusters, is.na(regions$clusters), 5)
+
+lisa_colors <- lisa_colors(lisa_q)[c(1:5, 7, 6)]
+lisa_labels <- lisa_labels(lisa_q)
+
+plot(regions$geometry.x, 
+     col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
+     border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
+title(main = "Local Moran Map of 1st wave response\n Queen neigbors criterion")
+legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
+
+lisa_r <- local_moran(rook_w, data.frame(regions.raw$response1))  # Default: 999 permutations
+
+regions.raw$clusters <- lisa_clusters(lisa_r)
+regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
+regions$clusters <- replace(regions$clusters, is.na(regions$clusters), 5)
+
+lisa_colors <- lisa_colors(lisa_r)[c(1:5, 7, 6)]
+lisa_labels <- lisa_labels(lisa_r)
+
+plot(regions$geometry.x, 
+     col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
+     border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
+title(main = "Local Moran Map of 1st wave response\n Rook neigbors criterion")
+legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
+
+#### LISA: Wave 1 cases ----
+
+par(mfrow=c(1,1))
+
+lisa_q <- local_moran(queen_w, data.frame(regions.raw$Cases_density_1))  # Default: 999 permutations
+
+regions.raw$clusters <- lisa_clusters(lisa_q)
+regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
+regions$clusters <- replace(regions$clusters, is.na(regions$clusters), 5)
+
+lisa_colors <- lisa_colors(lisa_q)[c(1:5, 7, 6)]
+lisa_labels <- lisa_labels(lisa_q)
+
+plot(regions$geometry.x, 
+     col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
+     border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
+title(main = "Local Moran Map of 1st wave cases density\n Queen neigbors criterion")
+legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
+
+lisa_r <- local_moran(rook_w, data.frame(regions.raw$Cases_density_1))  # Default: 999 permutations
+
+regions.raw$clusters <- lisa_clusters(lisa_r)
+regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
+regions$clusters <- replace(regions$clusters, is.na(regions$clusters), 5)
+
+lisa_colors <- lisa_colors(lisa_r)[c(1:5, 7, 6)]
+lisa_labels <- lisa_labels(lisa_r)
+
+plot(regions$geometry.x, 
+     col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
+     border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
+title(main = "Local Moran Map of 1st wave cases density\n Rook neigbors criterion")
+legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
+
+#### Wave 2 ----
+
+setwd('/home/fpjaa/Documents/GitHub/geostats-covid/Wave2')
+
+dataset$response2 <- (dataset$Cases_density_2 - mean(dataset$Cases_density_2))/sd(dataset$Cases_density_2)
+#(dataset$Cases_density_2)^(1/3)
+#sqrt(dataset$Cases_density_2)
+
+# Build the matrix of predictors
+options(na.action='na.omit')
+#options(na.action='na.pass')
+x <- model.matrix(response2 ~ Air_passengers+
+                    Hospital_beds+
+                    Death_rate+
+                    Compensation_of_employees+
+                    Deaths+
+                    Early_leavers_from_ed.+
+                    Employment_worked_hrs.+
+                    Farm_labour_force+
+                    Health_personnel+
+                    Respiratory_discharges+
+                    Life_expectancy+
+                    Longterm_care_beds+
+                    Gross_domestic_product+
+                    Ed._participation+
+                    Population_density+
+                    Population+
+                    Pupils_enrolled+
+                    GVA_growth+
+                    Vehicles+
+                    Tertiary_ed._students+
+                    Unemployment_rate+
+                    Utilised_agricultural_area+
+                    NEET_rate, data=dataset)[,-1]
+
+# Build the vector of response
+y <- dataset$response2
+
+# Let's set a grid of candidate lambda's for the estimate
+lambda.grid <- c(0,10^seq(2,-3,length=100))
+fit.lasso <- glmnet(x,y, lambda = lambda.grid) # default: alpha=1 -> lasso
+
+# Let's set lambda via cross validation
+cv.lasso <- cv.glmnet(x,y,lambda=lambda.grid) # default: 10-fold CV
+
+bestlam.lasso <- cv.lasso$lambda.min
+bestlam.lasso
+
+par(mfrow=c(1,1))
+par(mar=c(4,6,4,4)+0.1)  # BLTR
+plot(fit.lasso, xvar='lambda', label=TRUE, col = rainbow(dim(x)[2]))
+labs <- gsub("_", " ", dimnames(x)[[2]])
+legend('topright', labs, col =  rainbow(dim(x)[2]), lty=1, cex=0.7, ncol=2)
+abline(v = log(bestlam.lasso), col = 'black', lty = 3)
+
+plot(cv.lasso)
+
+coeffs.table <- coeff2dt(fitobject = cv.lasso, s = 'lambda.min')
+
+barplot(coeffs.table$coefficient[1:(length(coeffs.table[,1])-1)],
+        col = rainbow(length(coeffs.table[,1])-1),
+        main = "Coefficients of selected model")
+labs <- gsub("_", " ", coeffs.table$name[1:(length(coeffs.table[,1])-1)])
+legend('topright', labs, col =  rainbow(length(coeffs.table[,1])-1), lty=1, cex=0.8, ncol=2)
+
+#### Wave 2 residuals -----------------
+
+fitted_values <- predict(cv.lasso, x, s = 'lambda.min')
+
+dataset$residuals2 <- y - fitted_values
+
+shapiro.test(dataset$residuals2)
+
+par(mar=c(6,6,4,4)+0.1)  # BLTR
+hist(dataset$residuals2, breaks = 15,
+     main = "Histogram of model residuals",
+     xlab = "Residuals")
+#qqplot(dataset$residuals1)
+
+resid_w1 <- dataset[, c('NUTS', 'residuals2', 'Latitude', 'Longitude')]
+
+# Map plot
+# Residuals configuration
+mybreaks <- c(min(resid_w1$residuals2, na.rm = TRUE)-0.0001,
+              min(resid_w1$residuals2, na.rm = TRUE)/2,
+              0,
+              max(resid_w1$residuals2, na.rm = TRUE)/2,
+              max(resid_w1$residuals2, na.rm = TRUE)+0.0001)
+my_colors <- c('#0000ff', '#6495ed', '#f08080', '#ff0000')
+
+nuts_polyg_tagged <- merge(nuts_polyg[,c(1,7)], resid_w1[,c('NUTS', 'residuals2')], by="NUTS", all=TRUE)
+tags <- cut(nuts_polyg_tagged$residuals2, mybreaks)
+mycolourscheme <- my_colors[findInterval(nuts_polyg_tagged$residuals2, vec = mybreaks)]
+
+# Wave 1 plot
+par(mfrow=c(1,1))
+par(mar=c(2,4,2,4)+0.1)  # BLTR
+plot(nuts_polyg_tagged$geometry, col = mycolourscheme,
+     xlim=c(-18,20), ylim=c(25,63))
+legend("topleft", legend = levels(tags), col = my_colors, pch=1, cex=0.9,
+       title="Residuals (wave 2)")
+
+# Transformed response configuration
+mybreaks <- seq(min(dataset$response2)-0.0001,
+                max(dataset$response2)+0.0001,
+                length.out = 5)
+my_colors <- heat.colors(5, rev=TRUE)
+
+nuts_polyg_tagged <- merge(nuts_polyg[,c(1,7)], dataset[,c(1,30)], by="NUTS", all=TRUE)
+tags <- cut(nuts_polyg_tagged$response2, mybreaks)
+mycolourscheme <- my_colors[findInterval(nuts_polyg_tagged$response2, vec = mybreaks)]
+
+# Wave 2 plot
+par(mfrow=c(1,1))
+par(mar=c(2,4,2,4)+0.1)  # BLTR
+plot(nuts_polyg_tagged$geometry, col = mycolourscheme,
+     xlim=c(-18,20), ylim=c(25,63))
+legend("topleft", legend = levels(tags), col = my_colors, pch=1, cex=0.9,
+       title="Response (wave 2)")
+
+resid_w1$Latitude <- as.numeric(resid_w1$Latitude)
+resid_w1$Longitude <- as.numeric(resid_w1$Longitude)
+resid_w1$residuals2 <- as.numeric(resid_w1$residuals2)
+
+# Extract data in case of anisotropy
+write.csv(dataset[, c('NUTS', 'Latitude', 'Longitude', 'Cases_density_2', 'response2', 'residuals2')], 'wave2.csv')
+
+rm(coeffs.table, cv.lasso, fit.lasso, fitted_values, x, y,
+   bestlam.lasso, lambda.grid,
+   nuts_polyg_tagged, labs, my_colors, mybreaks, mycolourscheme, tags)
+
+#### Variogram modeling ----
+
+resid_w1 <- read.csv("wave1.csv", header=TRUE, stringsAsFactors=FALSE)
+resid_w1 <- resid_w1[, c('Latitude', 'Longitude', 'residuals1')]
+resid_w1$Latitude <- as.numeric(resid_w1$Latitude)
+resid_w1$Longitude <- as.numeric(resid_w1$Longitude)
+resid_w1$residuals1 <- as.numeric(resid_w1$residuals1)
+coordinates(resid_w1) <- c('Latitude','Longitude')
+proj4string(resid_w1) <- CRS("+init=epsg:4326")
+resid_proj <- spTransform(resid_w1, CRS("+proj=longlat +datum=WGS84"))
+
+coff <- 1900
+
+plot(variogram(residuals1 ~ 1, data=resid_w1), pch=19, main = 'Sample Variogram')
+
+plot(variogram(residuals1 ~ Longitude, data=resid_w1), pch=19, main = 'Residual Variogram')
+
+plot(variogram(residuals1 ~ 1, data=resid_w1,
+               cutoff = coff, width = coff/15), pch=19, main = paste('Sample Variogram, cutoff =',coff))
+
+plot(variogram(residuals1 ~ Longitude, data=resid_w1,
+               cutoff = coff, width = coff/15), pch=19, main = paste('Residual Variogram, cutoff =',coff))
+
+plot(variogram(residuals1 ~ Longitude, data=resid_w1,
+               alpha = c(0, 45, 90, 135),
+               cutoff = coff, width = coff/15), pch=19, main = 'Directional Residual Variogram')
+
+plot(variogram(residuals1 ~ Longitude, data=resid_w1,
+               cutoff = coff, width = coff/15,
+               map = TRUE))
+
+## weighted least squares fitting a variogram model to the sample variogram
+## STEPS:
+## 1) choose a suitable model
+v <- variogram(residuals1 ~ Longitude, data=resid_w1,
+               cutoff = coff, width = coff/15)
+
+plot(v)
+#vgm()
+## 2) choose suitable initial values for partial sill, range & nugget
+v.fit1 <- fit.variogram(v, vgm(1, "Exp", 500, 500))
+v.fit2 <- fit.variogram(v, vgm(1, "Sph", 500, 500))
+v.fit3 <- fit.variogram(v, vgm(1, "Gau", 500, 500))
+
+## 3) fit the model using one of the possible fitting criteria
+
+plot(v, v.fit1, pch = 19, main="Exponential model")
+plot(v, v.fit2, pch = 19, main="Spherical model")
+plot(v, v.fit3, pch = 19, main="Gaussian model")
+
+## Problem: Anisotropy: alpha = 0, 45, 90, 135
+
+v <- variogram(residuals1 ~ Longitude, data=resid_w1,
+               cutoff = coff, width = coff/15, alpha = c(0, 45, 90, 135))
+
+plot(v, v.fit1, pch = 19, main="Exponential model")
+plot(v, v.fit2, pch = 19, main="Spherical model")
+plot(v, v.fit3, pch = 19, main="Gaussian model")
+
+# Goodness of Fit: Residual sum of squares, wins Sph
+c(attributes(v.fit1)$SSErr, attributes(v.fit2)$SSErr, attributes(v.fit3)$SSErr)
+
+# Make sure they converged
+c(attributes(v.fit1)$singular, attributes(v.fit2)$singular, attributes(v.fit3)$singular)
+
+# calculate generalised least squares residuals
+par(mfrow = c(1,3))
+
+g1 <- gstat(NULL, "exp", residuals1 ~ Longitude,
+            data = resid_w1, model = v.fit1)
+blue1 <- predict(g1, newdata = resid_w1, BLUE = TRUE)
+blue1$blue.res <- resid_w1$residuals1 - blue1$exp.pred
+exp.box <- boxplot(blue1$blue.res, main = "GLS residuals for Exp model")
+summary(blue1$blue.res)
+
+g2 <- gstat(NULL, "sph", residuals1 ~ Longitude,
+            data = resid_w1, model = v.fit2)
+blue2 <- predict(g2, newdata = resid_w1, BLUE = TRUE)
+blue2$blue.res <- resid_w1$residuals1 - blue2$sph.pred
+sph.box <- boxplot(blue2$blue.res, main = "GLS residuals for Sph model")
+summary(blue2$blue.res)
+
+g3 <- gstat(NULL, "gau", residuals1 ~ Longitude,
+            data = resid_w1, model = v.fit3)
+blue3 <- predict(g3, newdata = resid_w1, BLUE = TRUE)
+blue3$blue.res <- resid_w1$residuals1 - blue3$gau.pred
+gau.box <- boxplot(blue3$blue.res, main = "GLS residuals for Gau model")
+summary(blue3$blue.res)
+
+rm(resid_w1, resid_proj, v, v.fit1, v.fit2, v.fit3, coff,
+   blue1, blue2, blue3, g1, g2, g3, exp.box, sph.box, gau.box)
+
+#### LISA setting ----
+
+dataset <- read.csv("wave1.csv", header=TRUE, stringsAsFactors=FALSE)
+regions.raw <- merge(dataset, nuts_polyg[,c(1,7)], by="NUTS")
+regions <- st_as_sf(regions.raw[,c('NUTS', 'geometry')])
 
 # Queen criterion defines neighbors as spatial units sharing a common edge/vertex
 queen_w <- queen_weights(regions)
 summary(queen_w)
+#weights_sparsity(queen_w)  # In summary
+#get_neighbors(queen_w, idx = 1)  # Gets neighbors of 1st element, can check for each
+#spatial_lag(queen_w, dataset['Cases_density_1'])  # Checks spatial lag of variable
 
 # Rook criterion defines neighbors by the existence of a common edge between two spatial units
 rook_w <- rook_weights(regions)
 summary(rook_w)  # Not very different from Queen
+
+# Distance-based: Get optimal critical distance to get neighbors
+#dist_thres <- min_distthreshold(regions)  # Everyone has at least 1 neighbor
+#dist_w <- distance_weights(regions, dist_thres)
+#summary(dist_w)  # MANY neighbors
+
+# Distance-based: KNN
+#knn_w <- knn_weights(regions, 5)
+#summary(knn_w)
+
+#### Wave 1 residuals ----
+
+par(mfrow=c(1,1))
+par(mar=c(2,4,4,4)+0.1)  # BLTR
+
+lisa_q <- local_moran(queen_w, data.frame(regions.raw$residuals1))  # Default: 999 permutations
+#fdr <- lisa_fdr(lisa_q, 0.05)  # False Discovery Rate, can use as cutoff for clusters
+
+regions.raw$clusters <- lisa_clusters(lisa_q)
+regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
+regions$clusters <- replace(regions$clusters, is.na(regions$clusters), 5)
+
+lisa_colors <- lisa_colors(lisa_q)[c(1:5, 7, 6)]
+lisa_labels <- lisa_labels(lisa_q)
+
+plot(regions$geometry.x, 
+     col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
+     border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
+title(main = "Local Moran Map of 1st wave residuals\n Queen neigbors criterion")
+legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
+
+lisa_r <- local_moran(rook_w, data.frame(regions.raw$residuals1))  # Default: 999 permutations
+#fdr <- lisa_fdr(lisa, 0.05)  # False Discovery Rate, can use as cutoff for clusters
+
+regions.raw$clusters <- lisa_clusters(lisa_r)
+regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
+regions$clusters <- replace(regions$clusters, is.na(regions$clusters), 5)
+
+lisa_colors <- lisa_colors(lisa_r)[c(1:5, 7, 6)]
+lisa_labels <- lisa_labels(lisa_r)
+
+plot(regions$geometry.x, 
+     col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
+     border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
+title(main = "Local Moran Map of 1st wave residuals\n Rook neigbors criterion")
+legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
+
+#lisa_d <- local_moran(dist_w, dataset['Cases_density_1'])  # Default: 999 permutations
+#fdr <- lisa_fdr(lisa, 0.05)  # False Discovery Rate, can use as cutoff for clusters
+
+#regions.raw$clusters <- lisa_clusters(lisa_d)
+#regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
+#regions$clusters <- replace(regions$clusters, is.na(regions$clusters), 5)
+
+#lisa_colors <- lisa_colors(lisa_d)[c(1:5, 7, 6)]
+#lisa_labels <- lisa_labels(lisa_d)
+
+#plot(regions$geometry.x, col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
+#title(main = "Local Moran Map of 1st wave cases density\n Distance-based criterion")
+#legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
+
+#lisa_knn <- local_moran(knn_w, dataset['Cases_density_1'])  # Default: 999 permutations
+#fdr <- lisa_fdr(lisa, 0.05)  # False Discovery Rate, can use as cutoff for clusters
+
+#regions.raw$clusters <- lisa_clusters(lisa_knn)
+#regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
+#regions$clusters <- replace(regions$clusters, is.na(regions$clusters), 5)
+
+#lisa_colors <- lisa_colors(lisa_knn)[c(1:5, 7, 6)]
+#lisa_labels <- lisa_labels(lisa_knn)
+
+#plot(regions$geometry.x, col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
+#title(main = "Local Moran Map of 1st wave cases density\n KNN criterion (K=5)")
+#legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
+
+#### LISA: Wave 1 responses ----
 
 par(mfrow=c(1,1))
 
@@ -1768,20 +1859,6 @@ legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", 
 
 #### LISA: Wave 1 cases ----
 
-setwd('/home/fpjaa/Documents/GitHub/geostats-covid/')
-dataset <- read.csv("dataset_w1.csv", header=TRUE, stringsAsFactors=FALSE)
-
-regions.raw <- merge(dataset[,2:3], nuts_polyg[,c(1,7)], by="NUTS")
-regions <- st_as_sf(regions.raw[,c(1,3)])
-
-# Queen criterion defines neighbors as spatial units sharing a common edge/vertex
-queen_w <- queen_weights(regions)
-summary(queen_w)
-
-# Rook criterion defines neighbors by the existence of a common edge between two spatial units
-rook_w <- rook_weights(regions)
-summary(rook_w)  # Not very different from Queen
-
 par(mfrow=c(1,1))
 
 lisa_q <- local_moran(queen_w, data.frame(regions.raw$Cases_density_1))  # Default: 999 permutations
@@ -1813,95 +1890,3 @@ plot(regions$geometry.x,
      border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
 title(main = "Local Moran Map of 1st wave cases density\n Rook neigbors criterion")
 legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
-
-#### Local Moran: Wave 2 ----
-
-lisa_q <- local_moran(queen_w, dataset['Cases_density_2'])  # Default: 999 permutations
-#fdr <- lisa_fdr(lisa, 0.05)  # False Discovery Rate, can use as cutoff for clusters
-
-regions.raw$clusters <- lisa_clusters(lisa_q)
-regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
-regions$clusters <- replace(regions$clusters, is.na(regions$clusters), 5)
-
-lisa_colors <- lisa_colors(lisa_q)[c(1:5, 7, 6)]
-lisa_labels <- lisa_labels(lisa_q)
-
-plot(regions$geometry.x, 
-     col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
-     border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
-title(main = "Local Moran Map of 2nd wave cases density\n Queen neigbors criterion")
-legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
-
-lisa_r <- local_moran(rook_w, dataset['Cases_density_2'])  # Default: 999 permutations
-#fdr <- lisa_fdr(lisa, 0.05)  # False Discovery Rate, can use as cutoff for clusters
-
-regions.raw$clusters <- lisa_clusters(lisa_r)
-regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
-regions$clusters <- replace(regions$clusters, is.na(regions$clusters), 5)
-
-lisa_colors <- lisa_colors(lisa_r)[c(1:5, 7, 6)]
-lisa_labels <- lisa_labels(lisa_r)
-
-plot(regions$geometry.x, 
-     col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
-     border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
-title(main = "Local Moran Map of 2nd wave cases density\n Rook neigbors criterion")
-legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
-
-lisa_d <- local_moran(dist_w, dataset['Cases_density_2'])  # Default: 999 permutations
-#fdr <- lisa_fdr(lisa, 0.05)  # False Discovery Rate, can use as cutoff for clusters
-
-regions.raw$clusters <- lisa_clusters(lisa_d)
-regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
-regions$clusters <- replace(regions$clusters, is.na(regions$clusters), 5)
-
-lisa_colors <- lisa_colors(lisa_d)[c(1:5, 7, 6)]
-lisa_labels <- lisa_labels(lisa_d)
-
-plot(regions$geometry.x, 
-     col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
-     border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
-title(main = "Local Moran Map of 2nd wave cases density\n Distance-based criterion")
-legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
-
-lisa_knn <- local_moran(knn_w, dataset['Cases_density_2'])  # Default: 999 permutations
-#fdr <- lisa_fdr(lisa, 0.05)  # False Discovery Rate, can use as cutoff for clusters
-
-regions.raw$clusters <- lisa_clusters(lisa_knn)
-regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
-regions$clusters <- replace(regions$clusters, is.na(regions$clusters), 5)
-
-lisa_colors <- lisa_colors(lisa_knn)[c(1:5, 7, 6)]
-lisa_labels <- lisa_labels(lisa_knn)
-
-plot(regions$geometry.x, 
-     col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
-     border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
-title(main = "Local Moran Map of 2nd wave cases density\n KNN criterion (K=5)")
-legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
-
-## Extra ----
-#### Summary ----
-
-data1$name <- replace(data1$name, data1$name=="Germany (until 1990 former territory of the FRG)", "Germany")
-regions_by_country <- table(data1$name)
-
-par(mfrow=c(1,1))
-par(mar=c(5,7,4,3)+0.1)  # BLTR
-barplot(regions_by_country,
-        main = "Regions considered by country",
-        xlab = "Amount of regions",
-        ylab = "",
-        col = "darkblue",
-        las = 1,
-        cex.names = 1,
-        horiz = TRUE)
-
-library(psych) 
-#create summary table
-resumen <- describe(data[,-c(1,25, 26, 27)])
-resumen <- data.frame(t(resumen))
-resumen <- cbind(row.names(resumen), resumen)
-write_csv(resumen, 'summary.csv')
-
-rm(resumen)
