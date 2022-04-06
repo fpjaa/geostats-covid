@@ -560,8 +560,8 @@ par(mfrow=c(1,1))
 par(mar=c(5,7,4,3)+0.1)
 barplot(height = missing$nans,
         names.arg = missing$country,
-        main = "Missing features by country",
-        xlab = "Country",
+        main = "Maximum missing features in a region",
+        xlab = "Missing values",
         ylab = "",
         col = "darkblue",
         las = 1,
@@ -587,7 +587,7 @@ barplot(height = missing$missing,
                       "Tertiary ed. students", "Unemployment rate",
                       "Utilised agricultural area", "NEET rate"),
         main = "Missing data by feature",
-        xlab = "Country",
+        xlab = "Missing values",
         ylab = "",
         col = "darkblue",
         las = 1,
@@ -735,8 +735,8 @@ par(mfrow=c(1,1))
 par(mar=c(5,7,4,3)+0.1)
 barplot(height = missing$nans,
         names.arg = missing$country,
-        main = "Missing features by country",
-        xlab = "Country",
+        main = "Maximum missing features in a region",
+        xlab = "Missing values",
         ylab = "",
         col = "darkblue",
         las = 1,
@@ -762,7 +762,7 @@ barplot(height = missing$missing,
                       "Tertiary ed. students", "Unemployment rate",
                       "Utilised agricultural area", "NEET rate"),
         main = "Missing data by feature",
-        xlab = "Country",
+        xlab = "Missing values",
         ylab = "",
         col = "darkblue",
         las = 1,
@@ -915,6 +915,7 @@ library(openxlsx)  # Read excel for national totals
 
 setwd('/home/fpjaa/Documents/GitHub/geostats-covid/')
 dataset <- read.csv("dataset.csv", header=TRUE, stringsAsFactors=FALSE)
+dataset <- dataset[,-c(2)]
 
 #### Load map ----
 
@@ -971,7 +972,7 @@ plot(nuts_polyg$geometry, xlim=c(-20,30), ylim=c(25,60))
 
 # Waves 1 and 2 initial configuration
 my_colors <- c(heat.colors(6, alpha = 1))[c(6,5,4,3,2)]
-nuts_polyg_tagged <- merge(nuts_polyg[,c(1,7)], dataset[,c(1,25,26)], by="NUTS", all=TRUE)
+nuts_polyg_tagged <- merge(nuts_polyg[,c(1,7)], dataset[,c('NUTS', 'Cases_density_1', 'Cases_density_2')], by="NUTS", all=TRUE)
 
 mybreaks <- seq(from = min(dataset$Cases_density_1)-0.000001,
                 to = max(dataset$Cases_density_1)+0.00001,
@@ -1006,7 +1007,7 @@ dataset <- na.omit(dataset)
 
 # Waves 1 and 2 initial configuration
 my_colors <- c(heat.colors(6, alpha = 1))[c(6,5,4,3,2)]
-nuts_polyg_tagged <- merge(nuts_polyg[,c(1,7)], dataset[,c(1,25,26)], by="NUTS", all=TRUE)
+nuts_polyg_tagged <- merge(nuts_polyg[,c(1,7)], dataset[,c('NUTS', 'Cases_density_1', 'Cases_density_2')], by="NUTS", all=TRUE)
 
 mybreaks <- seq(from = min(dataset$Cases_density_1)-0.000001,
                 to = max(dataset$Cases_density_1)+0.00001,
@@ -1039,7 +1040,7 @@ legend("topleft", legend = levels(tags), col = my_colors, pch=1, cex=0.9,
 
 rm(my_colors, mybreaks, mycolourscheme, tags)
 
-#### Plots of 86 rows ----
+#### Plots of 112 rows ----
 
 ## Transformations
 
@@ -1107,6 +1108,7 @@ colnames(names) <- c('Country', 'Name')
 
 counter <- merge(dataset[,c('NUTS', 'Country')], names, by = "Country")
 counter$Name <- replace(counter$Name, counter$Name=="Germany (until 1990 former territory of the FRG)", "Germany")
+par(mfrow = c(1,1))
 par(mar=c(4,8,4,4)+0.1)  # BLTR
 barplot(table(counter$Name),
         main = "Regions by country",
@@ -1139,7 +1141,7 @@ dataset$response1 <- qlogis(dataset$Cases_density_1)
 # Build the matrix of predictors
 options(na.action='na.omit')
 #options(na.action='na.pass')
-x <- model.matrix(response1 ~ Air_passengers+
+x <- model.matrix(response1 ~ #Air_passengers+
                     Hospital_beds+
                     Death_rate+
                     Compensation_of_employees+
@@ -1205,7 +1207,8 @@ par(mar=c(6,6,4,4)+0.1)  # BLTR
 hist(dataset$residuals1, breaks = 15,
      main = "Histogram of model residuals",
      xlab = "Residuals")
-#qqplot(dataset$residuals1)
+qqnorm(dataset$residuals1)
+qqline(dataset$residuals1) 
 
 resid_w1 <- dataset[, c('NUTS', 'residuals1', 'Latitude', 'Longitude')]
 
@@ -1236,7 +1239,7 @@ mybreaks <- seq(min(dataset$response1)-0.0001,
                 length.out = 5)
 my_colors <- heat.colors(5, rev=TRUE)
 
-nuts_polyg_tagged <- merge(nuts_polyg[,c(1,7)], dataset[,c(1,30)], by="NUTS", all=TRUE)
+nuts_polyg_tagged <- merge(nuts_polyg[,c(1,7)], dataset[,c('NUTS', 'response1')], by="NUTS", all=TRUE)
 tags <- cut(nuts_polyg_tagged$response1, mybreaks)
 mycolourscheme <- my_colors[findInterval(nuts_polyg_tagged$response1, vec = mybreaks)]
 
@@ -1274,7 +1277,11 @@ plot(variogram(residuals1 ~ 1, data=resid_w1), pch=19, main = 'Sample Variogram'
 
 plot(variogram(residuals1 ~ Longitude, data=resid_w1), pch=19, main = 'Residual Variogram')
 
-coff <- 1900
+#plot(variogram(residuals1 ~ Latitude, data=resid_w1), pch=19, main = 'Residual Variogram')
+
+#plot(variogram(residuals1 ~ Longitude+Latitude, data=resid_w1), pch=19, main = 'Residual Variogram')
+
+coff <- 1200
 
 plot(variogram(residuals1 ~ 1, data=resid_w1,
                cutoff = coff, width = coff/15), pch=19, main = paste('Sample Variogram, cutoff =',coff))
@@ -1282,13 +1289,21 @@ plot(variogram(residuals1 ~ 1, data=resid_w1,
 plot(variogram(residuals1 ~ Longitude, data=resid_w1,
                cutoff = coff, width = coff/15), pch=19, main = paste('Residual Variogram, cutoff =',coff))
 
+#plot(variogram(residuals1 ~ Latitude, data=resid_w1, cutoff = coff, width = coff/15), pch=19, main = paste('Residual Variogram, cutoff =',coff))
+
+#plot(variogram(residuals1 ~ Longitude+Latitude, data=resid_w1, cutoff = coff, width = coff/15), pch=19, main = paste('Residual Variogram, cutoff =',coff))
+
 plot(variogram(residuals1 ~ Longitude, data=resid_w1,
                alpha = c(0, 45, 90, 135),
                cutoff = coff, width = coff/15), pch=19, main = 'Directional Residual Variogram')
 
-plot(variogram(residuals1 ~ Longitude, data=resid_w1,
-               cutoff = coff, width = coff/15,
-               map = TRUE))
+#plot(variogram(residuals1 ~ Latitude, data=resid_w1, alpha = c(0, 45, 90, 135), cutoff = coff, width = coff/15), pch=19, main = 'Directional Residual Variogram')
+
+#plot(variogram(residuals1 ~ Longitude+Latitude, data=resid_w1, alpha = c(0, 45, 90, 135), cutoff = coff, width = coff/15), pch=19, main = 'Directional Residual Variogram')
+
+#plot(variogram(residuals1 ~ 1, data=resid_w1, alpha = c(0, 45, 90, 135), cutoff = coff, width = coff/15), pch=19, main = 'Directional Sample Variogram')
+
+#plot(variogram(residuals1 ~ Longitude, data=resid_w1, cutoff = coff, width = coff/15, map = TRUE))
 
 ## weighted least squares fitting a variogram model to the sample variogram
 ## STEPS:
@@ -1347,7 +1362,7 @@ blue3$blue.res <- resid_w1$residuals1 - blue3$gau.pred
 gau.box <- boxplot(blue3$blue.res, main = "GLS residuals for Gau model")
 summary(blue3$blue.res)
 
-rm(resid_w1, resid_proj, v, v.fit1, v.fit2, v.fit3, coff,
+rm(resid_w1, v, v.fit1, v.fit2, v.fit3, coff,
    blue1, blue2, blue3, g1, g2, g3, exp.box, sph.box, gau.box)
 
 #### LISA setting ----
@@ -1520,7 +1535,7 @@ dataset$response2 <- (dataset$Cases_density_2 - mean(dataset$Cases_density_2))/s
 # Build the matrix of predictors
 options(na.action='na.omit')
 #options(na.action='na.pass')
-x <- model.matrix(response2 ~ Air_passengers+
+x <- model.matrix(response2 ~ #Air_passengers+
                     Hospital_beds+
                     Death_rate+
                     Compensation_of_employees+
@@ -1586,7 +1601,8 @@ par(mar=c(6,6,4,4)+0.1)  # BLTR
 hist(dataset$residuals2, breaks = 15,
      main = "Histogram of model residuals",
      xlab = "Residuals")
-#qqplot(dataset$residuals1)
+qqnorm(dataset$residuals2)
+qqline(dataset$residuals2) 
 
 resid_w2 <- dataset[, c('NUTS', 'residuals2', 'Latitude', 'Longitude')]
 
@@ -1617,7 +1633,7 @@ mybreaks <- seq(min(dataset$response2)-0.0001,
                 length.out = 5)
 my_colors <- heat.colors(5, rev=TRUE)
 
-nuts_polyg_tagged <- merge(nuts_polyg[,c(1,7)], dataset[,c(1,30)], by="NUTS", all=TRUE)
+nuts_polyg_tagged <- merge(nuts_polyg[,c(1,7)], dataset[,c('NUTS', 'response2')], by="NUTS", all=TRUE)
 tags <- cut(nuts_polyg_tagged$response2, mybreaks)
 mycolourscheme <- my_colors[findInterval(nuts_polyg_tagged$response2, vec = mybreaks)]
 
@@ -1669,9 +1685,7 @@ plot(variogram(residuals2 ~ Latitude, data=resid_w2,
                alpha = c(0, 45, 90, 135),
                cutoff = coff, width = coff/15), pch=19, main = 'Directional Residual Variogram')
 
-plot(variogram(residuals2 ~ Latitude, data=resid_w2,
-               cutoff = coff, width = coff/15,
-               map = TRUE))
+#plot(variogram(residuals2 ~ Latitude, data=resid_w2, cutoff = coff, width = coff/15, map = TRUE))
 
 ## weighted least squares fitting a variogram model to the sample variogram
 ## STEPS:
@@ -1825,7 +1839,7 @@ legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", 
 #title(main = "Local Moran Map of 1st wave cases density\n KNN criterion (K=5)")
 #legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
 
-#### LISA: Wave 2 responses ----
+#### Wave 2 responses ----
 
 par(mfrow=c(1,1))
 
@@ -1859,7 +1873,7 @@ plot(regions$geometry.x,
 title(main = "Local Moran Map of 2nd wave response\n Rook neigbors criterion")
 legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
 
-#### LISA: Wave 2 cases ----
+#### Wave 2 cases ----
 
 par(mfrow=c(1,1))
 
