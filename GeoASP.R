@@ -917,6 +917,9 @@ setwd('/home/fpjaa/Documents/GitHub/geostats-covid/')
 dataset <- read.csv("dataset.csv", header=TRUE, stringsAsFactors=FALSE)
 dataset <- dataset[,-c(2)]
 
+## Set seed
+set.seed(22072022)
+
 #### Load map ----
 
 setwd('/home/fpjaa/Documents/GitHub/geostats-covid/Polygons/')
@@ -1203,12 +1206,22 @@ dataset$residuals1 <- y - fitted_values
 
 shapiro.test(dataset$residuals1)
 
+# Diagnostic plots
 par(mar=c(6,6,4,4)+0.1)  # BLTR
 hist(dataset$residuals1, breaks = 15,
      main = "Histogram of model residuals",
      xlab = "Residuals")
 qqnorm(dataset$residuals1)
-qqline(dataset$residuals1) 
+qqline(dataset$residuals1)
+plot(x=fitted_values, y=dataset$residuals1,
+     main="Residuals vs Fitted", xlab="Fitted", ylab="Residuals")
+abline(h=0, col = 'black', lty = 3)
+
+#find R-Squared
+sst <- sum((y - mean(y))^2)
+sse <- sum((fitted_values - y)^2)
+rsq <- 1 - sse/sst
+rsq
 
 resid_w1 <- dataset[, c('NUTS', 'residuals1', 'Latitude', 'Longitude')]
 
@@ -1259,7 +1272,7 @@ resid_w1$residuals1 <- as.numeric(resid_w1$residuals1)
 write.csv(dataset[, c('NUTS', 'Latitude', 'Longitude', 'Cases_density_1', 'response1', 'residuals1')], 'wave1.csv')
 
 rm(coeffs.table, cv.lasso, fit.lasso, fitted_values, x, y,
-   bestlam.lasso, lambda.grid,
+   bestlam.lasso, lambda.grid, sst, sse, rsq,
    nuts_polyg_tagged, labs, my_colors, mybreaks, mycolourscheme, tags)
 
 #### Variogram modeling ----
@@ -1602,7 +1615,16 @@ hist(dataset$residuals2, breaks = 15,
      main = "Histogram of model residuals",
      xlab = "Residuals")
 qqnorm(dataset$residuals2)
-qqline(dataset$residuals2) 
+qqline(dataset$residuals2)
+plot(x=fitted_values, y=dataset$residuals2,
+     main="Residuals vs Fitted", xlab="Fitted", ylab="Residuals")
+abline(h=0, col = 'black', lty = 3)
+
+#find R-Squared
+sst <- sum((y - mean(y))^2)
+sse <- sum((fitted_values - y)^2)
+rsq <- 1 - sse/sst
+rsq
 
 resid_w2 <- dataset[, c('NUTS', 'residuals2', 'Latitude', 'Longitude')]
 
@@ -1653,7 +1675,7 @@ resid_w2$residuals2 <- as.numeric(resid_w2$residuals2)
 write.csv(dataset[, c('NUTS', 'Latitude', 'Longitude', 'Cases_density_2', 'response2', 'residuals2')], 'wave2.csv')
 
 rm(coeffs.table, cv.lasso, fit.lasso, fitted_values, x, y,
-   bestlam.lasso, lambda.grid,
+   bestlam.lasso, lambda.grid, sse, sst, rsq,
    nuts_polyg_tagged, labs, my_colors, mybreaks, mycolourscheme, tags)
 
 #### Variogram modeling ----
