@@ -1115,7 +1115,7 @@ par(mfrow = c(1,1))
 par(mar=c(4,8,4,4)+0.1)  # BLTR
 barplot(table(counter$Name),
         main = "Regions by country",
-        xlab = "Country",
+        xlab = "Regions",
         ylab = "",
         col = "darkblue",
         las = 1,
@@ -1208,14 +1208,22 @@ shapiro.test(dataset$residuals1)
 
 # Diagnostic plots
 par(mar=c(6,6,4,4)+0.1)  # BLTR
+
 hist(dataset$residuals1, breaks = 15,
      main = "Histogram of model residuals",
      xlab = "Residuals")
+
 qqnorm(dataset$residuals1)
 qqline(dataset$residuals1)
+
 plot(x=fitted_values, y=dataset$residuals1,
      main="Residuals vs Fitted", xlab="Fitted", ylab="Residuals")
 abline(h=0, col = 'black', lty = 3)
+
+std.res <- (dataset$residuals1 - mean(dataset$residuals1))/sd(dataset$residuals1)
+plot(x=fitted_values, y=sqrt(abs(std.res)),
+     main="Scale-Location", xlab="Fitted", ylab="Sqrt. Abs. Std. Res.")
+abline(h=mean(sqrt(abs(std.res))), col = 'red', lty = 3)
 
 #find R-Squared
 sst <- sum((y - mean(y))^2)
@@ -1272,7 +1280,7 @@ resid_w1$residuals1 <- as.numeric(resid_w1$residuals1)
 write.csv(dataset[, c('NUTS', 'Latitude', 'Longitude', 'Cases_density_1', 'response1', 'residuals1')], 'wave1.csv')
 
 rm(coeffs.table, cv.lasso, fit.lasso, fitted_values, x, y,
-   bestlam.lasso, lambda.grid, sst, sse, rsq,
+   bestlam.lasso, lambda.grid, sst, sse, rsq, std.res,
    nuts_polyg_tagged, labs, my_colors, mybreaks, mycolourscheme, tags)
 
 #### Variogram modeling ----
@@ -1404,7 +1412,7 @@ summary(rook_w)  # Not very different from Queen
 #knn_w <- knn_weights(regions, 5)
 #summary(knn_w)
 
-#### Wave 1 residuals ----
+### Wave 1 residuals ----
 
 par(mfrow=c(1,1))
 par(mar=c(2,4,4,4)+0.1)  # BLTR
@@ -1469,7 +1477,7 @@ legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", 
 #title(main = "Local Moran Map of 1st wave cases density\n KNN criterion (K=5)")
 #legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
 
-#### Wave 1 responses ----
+### Wave 1 responses ----
 
 par(mfrow=c(1,1))
 
@@ -1503,7 +1511,7 @@ plot(regions$geometry.x,
 title(main = "Local Moran Map of 1st wave response\n Rook neigbors criterion")
 legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
 
-#### Wave 1 cases ----
+### Wave 1 cases ----
 
 par(mfrow=c(1,1))
 
@@ -1611,14 +1619,22 @@ dataset$residuals2 <- y - fitted_values
 shapiro.test(dataset$residuals2)
 
 par(mar=c(6,6,4,4)+0.1)  # BLTR
+
 hist(dataset$residuals2, breaks = 15,
      main = "Histogram of model residuals",
      xlab = "Residuals")
+
 qqnorm(dataset$residuals2)
 qqline(dataset$residuals2)
+
 plot(x=fitted_values, y=dataset$residuals2,
      main="Residuals vs Fitted", xlab="Fitted", ylab="Residuals")
 abline(h=0, col = 'black', lty = 3)
+
+std.res <- (dataset$residuals2 - mean(dataset$residuals2))/sd(dataset$residuals2)
+plot(x=fitted_values, y=sqrt(abs(std.res)),
+     main="Scale-Location", xlab="Fitted", ylab="Sqrt. Abs. Std. Res.")
+abline(h=mean(sqrt(abs(std.res))), col = 'red', lty = 3)
 
 #find R-Squared
 sst <- sum((y - mean(y))^2)
@@ -1675,7 +1691,7 @@ resid_w2$residuals2 <- as.numeric(resid_w2$residuals2)
 write.csv(dataset[, c('NUTS', 'Latitude', 'Longitude', 'Cases_density_2', 'response2', 'residuals2')], 'wave2.csv')
 
 rm(coeffs.table, cv.lasso, fit.lasso, fitted_values, x, y,
-   bestlam.lasso, lambda.grid, sse, sst, rsq,
+   bestlam.lasso, lambda.grid, sse, sst, rsq, std.res,
    nuts_polyg_tagged, labs, my_colors, mybreaks, mycolourscheme, tags)
 
 #### Variogram modeling ----
@@ -1796,7 +1812,7 @@ summary(rook_w)  # Not very different from Queen
 #knn_w <- knn_weights(regions, 5)
 #summary(knn_w)
 
-#### Wave 2 residuals ----
+### Wave 2 residuals ----
 
 par(mfrow=c(1,1))
 par(mar=c(2,4,4,4)+0.1)  # BLTR
@@ -1861,7 +1877,7 @@ legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", 
 #title(main = "Local Moran Map of 1st wave cases density\n KNN criterion (K=5)")
 #legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
 
-#### Wave 2 responses ----
+### Wave 2 responses ----
 
 par(mfrow=c(1,1))
 
@@ -1895,7 +1911,7 @@ plot(regions$geometry.x,
 title(main = "Local Moran Map of 2nd wave response\n Rook neigbors criterion")
 legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
 
-#### Wave 2 cases ----
+### Wave 2 cases ----
 
 par(mfrow=c(1,1))
 
