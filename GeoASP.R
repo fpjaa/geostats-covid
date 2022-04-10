@@ -1225,6 +1225,10 @@ plot(x=fitted_values, y=sqrt(abs(std.res)),
      main="Scale-Location", xlab="Fitted", ylab="Sqrt. Abs. Std. Res.")
 abline(h=mean(sqrt(abs(std.res))), col = 'red', lty = 3)
 
+H <- x %*% solve(t(x) %*% x) %*% t(x)
+plot(x=diag(H), y=std.res,
+     main="Residuals vs Leverage", xlab="Leverage", ylab="Std. Residuals")
+
 #find R-Squared
 sst <- sum((y - mean(y))^2)
 sse <- sum((fitted_values - y)^2)
@@ -1353,7 +1357,7 @@ plot(v, v.fit1, pch = 19, main="Exponential model")
 plot(v, v.fit2, pch = 19, main="Spherical model")
 plot(v, v.fit3, pch = 19, main="Gaussian model")
 
-# Goodness of Fit: Residual sum of squares, wins Sph
+# Goodness of Fit: Residual sum of squares
 c(attributes(v.fit1)$SSErr, attributes(v.fit2)$SSErr, attributes(v.fit3)$SSErr)
 
 # Make sure they converged
@@ -1400,8 +1404,8 @@ summary(queen_w)
 #spatial_lag(queen_w, dataset['Cases_density_1'])  # Checks spatial lag of variable
 
 # Rook criterion defines neighbors by the existence of a common edge between two spatial units
-rook_w <- rook_weights(regions)
-summary(rook_w)  # Not very different from Queen
+#rook_w <- rook_weights(regions)
+#summary(rook_w)  # Not very different from Queen
 
 # Distance-based: Get optimal critical distance to get neighbors
 #dist_thres <- min_distthreshold(regions)  # Everyone has at least 1 neighbor
@@ -1415,7 +1419,7 @@ summary(rook_w)  # Not very different from Queen
 ### Wave 1 residuals ----
 
 par(mfrow=c(1,1))
-par(mar=c(2,4,4,4)+0.1)  # BLTR
+par(mar=c(1,2,4,2)+0.1)  # BLTR
 
 lisa_q <- local_moran(queen_w, data.frame(regions.raw$residuals1))  # Default: 999 permutations
 #fdr <- lisa_fdr(lisa_q, 0.05)  # False Discovery Rate, can use as cutoff for clusters
@@ -1430,24 +1434,22 @@ lisa_labels <- lisa_labels(lisa_q)
 plot(regions$geometry.x, 
      col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
      border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
-title(main = "Local Moran Map of 1st wave residuals\n Queen neigbors criterion")
-legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
+title(main = "Local Moran Map of 1st wave residuals")
+legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.9)
 
-lisa_r <- local_moran(rook_w, data.frame(regions.raw$residuals1))  # Default: 999 permutations
+#lisa_r <- local_moran(rook_w, data.frame(regions.raw$residuals1))  # Default: 999 permutations
 #fdr <- lisa_fdr(lisa, 0.05)  # False Discovery Rate, can use as cutoff for clusters
 
-regions.raw$clusters <- lisa_clusters(lisa_r)
-regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
-regions$clusters <- replace(regions$clusters, is.na(regions$clusters), 5)
+#regions.raw$clusters <- lisa_clusters(lisa_r)
+#regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
+#regions$clusters <- replace(regions$clusters, is.na(regions$clusters), 5)
 
-lisa_colors <- lisa_colors(lisa_r)[c(1:5, 7, 6)]
-lisa_labels <- lisa_labels(lisa_r)
+#lisa_colors <- lisa_colors(lisa_r)[c(1:5, 7, 6)]
+#lisa_labels <- lisa_labels(lisa_r)
 
-plot(regions$geometry.x, 
-     col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
-     border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
-title(main = "Local Moran Map of 1st wave residuals\n Rook neigbors criterion")
-legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
+#plot(regions$geometry.x, col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
+#title(main = "Local Moran Map of 1st wave residuals\n Rook neigbors criterion")
+#legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
 
 #lisa_d <- local_moran(dist_w, dataset['Cases_density_1'])  # Default: 999 permutations
 #fdr <- lisa_fdr(lisa, 0.05)  # False Discovery Rate, can use as cutoff for clusters
@@ -1493,23 +1495,21 @@ lisa_labels <- lisa_labels(lisa_q)
 plot(regions$geometry.x, 
      col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
      border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
-title(main = "Local Moran Map of 1st wave response\n Queen neigbors criterion")
-legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
+title(main = "Local Moran Map of 1st wave response")
+legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.9)
 
-lisa_r <- local_moran(rook_w, data.frame(regions.raw$response1))  # Default: 999 permutations
+#lisa_r <- local_moran(rook_w, data.frame(regions.raw$response1))  # Default: 999 permutations
 
-regions.raw$clusters <- lisa_clusters(lisa_r)
-regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
-regions$clusters <- replace(regions$clusters, is.na(regions$clusters), 5)
+#regions.raw$clusters <- lisa_clusters(lisa_r)
+#regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
+#regions$clusters <- replace(regions$clusters, is.na(regions$clusters), 5)
 
-lisa_colors <- lisa_colors(lisa_r)[c(1:5, 7, 6)]
-lisa_labels <- lisa_labels(lisa_r)
+#lisa_colors <- lisa_colors(lisa_r)[c(1:5, 7, 6)]
+#lisa_labels <- lisa_labels(lisa_r)
 
-plot(regions$geometry.x, 
-     col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
-     border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
-title(main = "Local Moran Map of 1st wave response\n Rook neigbors criterion")
-legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
+#plot(regions$geometry.x, col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
+#title(main = "Local Moran Map of 1st wave response\n Rook neigbors criterion")
+#legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
 
 ### Wave 1 cases ----
 
@@ -1527,23 +1527,21 @@ lisa_labels <- lisa_labels(lisa_q)
 plot(regions$geometry.x, 
      col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
      border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
-title(main = "Local Moran Map of 1st wave cases density\n Queen neigbors criterion")
-legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
+title(main = "Local Moran Map of 1st wave cases density")
+legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.9)
 
-lisa_r <- local_moran(rook_w, data.frame(regions.raw$Cases_density_1))  # Default: 999 permutations
+#lisa_r <- local_moran(rook_w, data.frame(regions.raw$Cases_density_1))  # Default: 999 permutations
 
-regions.raw$clusters <- lisa_clusters(lisa_r)
-regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
-regions$clusters <- replace(regions$clusters, is.na(regions$clusters), 5)
+#regions.raw$clusters <- lisa_clusters(lisa_r)
+#regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
+#regions$clusters <- replace(regions$clusters, is.na(regions$clusters), 5)
 
-lisa_colors <- lisa_colors(lisa_r)[c(1:5, 7, 6)]
-lisa_labels <- lisa_labels(lisa_r)
+#lisa_colors <- lisa_colors(lisa_r)[c(1:5, 7, 6)]
+#lisa_labels <- lisa_labels(lisa_r)
 
-plot(regions$geometry.x, 
-     col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
-     border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
-title(main = "Local Moran Map of 1st wave cases density\n Rook neigbors criterion")
-legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
+#plot(regions$geometry.x, col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
+#title(main = "Local Moran Map of 1st wave cases density\n Rook neigbors criterion")
+#legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
 
 #### Wave 2 ----
 
@@ -1635,6 +1633,10 @@ std.res <- (dataset$residuals2 - mean(dataset$residuals2))/sd(dataset$residuals2
 plot(x=fitted_values, y=sqrt(abs(std.res)),
      main="Scale-Location", xlab="Fitted", ylab="Sqrt. Abs. Std. Res.")
 abline(h=mean(sqrt(abs(std.res))), col = 'red', lty = 3)
+
+H <- x %*% solve(t(x) %*% x) %*% t(x)
+plot(x=diag(H), y=std.res,
+     main="Residuals vs Leverage", xlab="Leverage", ylab="Std. Residuals")
 
 #find R-Squared
 sst <- sum((y - mean(y))^2)
@@ -1783,7 +1785,7 @@ blue3$blue.res <- resid_w2$residuals2 - blue3$gau.pred
 gau.box <- boxplot(blue3$blue.res, main = "GLS residuals for Gau model")
 summary(blue3$blue.res)
 
-rm(resid_w2, resid_proj, v, v.fit1, v.fit2, v.fit3, coff,
+rm(resid_w2, v, v.fit1, v.fit2, v.fit3, coff,
    blue1, blue2, blue3, g1, g2, g3, exp.box, sph.box, gau.box)
 
 #### LISA setting ----
@@ -1800,8 +1802,8 @@ summary(queen_w)
 #spatial_lag(queen_w, dataset['Cases_density_1'])  # Checks spatial lag of variable
 
 # Rook criterion defines neighbors by the existence of a common edge between two spatial units
-rook_w <- rook_weights(regions)
-summary(rook_w)  # Not very different from Queen
+#rook_w <- rook_weights(regions)
+#summary(rook_w)  # Not very different from Queen
 
 # Distance-based: Get optimal critical distance to get neighbors
 #dist_thres <- min_distthreshold(regions)  # Everyone has at least 1 neighbor
@@ -1815,7 +1817,7 @@ summary(rook_w)  # Not very different from Queen
 ### Wave 2 residuals ----
 
 par(mfrow=c(1,1))
-par(mar=c(2,4,4,4)+0.1)  # BLTR
+par(mar=c(1,2,4,2)+0.1)  # BLTR
 
 lisa_q <- local_moran(queen_w, data.frame(regions.raw$residuals2))  # Default: 999 permutations
 #fdr <- lisa_fdr(lisa_q, 0.05)  # False Discovery Rate, can use as cutoff for clusters
@@ -1830,24 +1832,22 @@ lisa_labels <- lisa_labels(lisa_q)
 plot(regions$geometry.x, 
      col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
      border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
-title(main = "Local Moran Map of 2nd wave residuals\n Queen neigbors criterion")
-legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
+title(main = "Local Moran Map of 2nd wave residuals")
+legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.9)
 
-lisa_r <- local_moran(rook_w, data.frame(regions.raw$residuals2))  # Default: 999 permutations
+#lisa_r <- local_moran(rook_w, data.frame(regions.raw$residuals2))  # Default: 999 permutations
 #fdr <- lisa_fdr(lisa, 0.05)  # False Discovery Rate, can use as cutoff for clusters
 
-regions.raw$clusters <- lisa_clusters(lisa_r)
-regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
-regions$clusters <- replace(regions$clusters, is.na(regions$clusters), 5)
+#regions.raw$clusters <- lisa_clusters(lisa_r)
+#regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
+#regions$clusters <- replace(regions$clusters, is.na(regions$clusters), 5)
 
-lisa_colors <- lisa_colors(lisa_r)[c(1:5, 7, 6)]
-lisa_labels <- lisa_labels(lisa_r)
+#lisa_colors <- lisa_colors(lisa_r)[c(1:5, 7, 6)]
+#lisa_labels <- lisa_labels(lisa_r)
 
-plot(regions$geometry.x, 
-     col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
-     border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
-title(main = "Local Moran Map of 2nd wave residuals\n Rook neigbors criterion")
-legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
+#plot(regions$geometry.x, col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
+#title(main = "Local Moran Map of 2nd wave residuals\n Rook neigbors criterion")
+#legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
 
 #lisa_d <- local_moran(dist_w, dataset['Cases_density_1'])  # Default: 999 permutations
 #fdr <- lisa_fdr(lisa, 0.05)  # False Discovery Rate, can use as cutoff for clusters
@@ -1893,23 +1893,21 @@ lisa_labels <- lisa_labels(lisa_q)
 plot(regions$geometry.x, 
      col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
      border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
-title(main = "Local Moran Map of 2nd wave response\n Queen neigbors criterion")
-legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
+title(main = "Local Moran Map of 2nd wave response")
+legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.9)
 
-lisa_r <- local_moran(rook_w, data.frame(regions.raw$response2))  # Default: 999 permutations
+#lisa_r <- local_moran(rook_w, data.frame(regions.raw$response2))  # Default: 999 permutations
 
-regions.raw$clusters <- lisa_clusters(lisa_r)
-regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
-regions$clusters <- replace(regions$clusters, is.na(regions$clusters), 5)
+#regions.raw$clusters <- lisa_clusters(lisa_r)
+#regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
+#regions$clusters <- replace(regions$clusters, is.na(regions$clusters), 5)
 
-lisa_colors <- lisa_colors(lisa_r)[c(1:5, 7, 6)]
-lisa_labels <- lisa_labels(lisa_r)
+#lisa_colors <- lisa_colors(lisa_r)[c(1:5, 7, 6)]
+#lisa_labels <- lisa_labels(lisa_r)
 
-plot(regions$geometry.x, 
-     col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
-     border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
-title(main = "Local Moran Map of 2nd wave response\n Rook neigbors criterion")
-legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
+#plot(regions$geometry.x, col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
+#title(main = "Local Moran Map of 2nd wave response\n Rook neigbors criterion")
+#legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
 
 ### Wave 2 cases ----
 
@@ -1927,20 +1925,18 @@ lisa_labels <- lisa_labels(lisa_q)
 plot(regions$geometry.x, 
      col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
      border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
-title(main = "Local Moran Map of 2nd wave cases density\n Queen neigbors criterion")
-legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
+title(main = "Local Moran Map of 2nd wave cases density")
+legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.9)
 
-lisa_r <- local_moran(rook_w, data.frame(regions.raw$Cases_density_2))  # Default: 999 permutations
+#lisa_r <- local_moran(rook_w, data.frame(regions.raw$Cases_density_2))  # Default: 999 permutations
 
-regions.raw$clusters <- lisa_clusters(lisa_r)
-regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
-regions$clusters <- replace(regions$clusters, is.na(regions$clusters), 5)
+#regions.raw$clusters <- lisa_clusters(lisa_r)
+#regions <- merge(data.frame(nuts_polyg), data.frame(regions.raw), by="NUTS", all=TRUE)
+#regions$clusters <- replace(regions$clusters, is.na(regions$clusters), 5)
 
-lisa_colors <- lisa_colors(lisa_r)[c(1:5, 7, 6)]
-lisa_labels <- lisa_labels(lisa_r)
+#lisa_colors <- lisa_colors(lisa_r)[c(1:5, 7, 6)]
+#lisa_labels <- lisa_labels(lisa_r)
 
-plot(regions$geometry.x, 
-     col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), 
-     border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
-title(main = "Local Moran Map of 2nd wave cases density\n Rook neigbors criterion")
-legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
+#plot(regions$geometry.x, col=sapply(regions$clusters, function(x){return(lisa_colors[[x+1]])}), border = "#333333", lwd=0.2, xlim=c(-20,30), ylim=c(25,60))
+#title(main = "Local Moran Map of 2nd wave cases density\n Rook neigbors criterion")
+#legend('topleft', legend = lisa_labels, fill = lisa_colors, border = "#eeeeee", cex=0.8)
