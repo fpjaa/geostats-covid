@@ -910,6 +910,7 @@ library(gstat)  # Geostatistics (variogram)
 library(sp)  # Data management
 library(rgeoda)  # LISA clustering
 library(openxlsx)  # Read excel for national totals
+library(rgdal)  # Manage variogram distance in Km
 
 ## Load data
 
@@ -1296,11 +1297,11 @@ resid_w1$Longitude <- as.numeric(resid_w1$Longitude)
 resid_w1$residuals1 <- as.numeric(resid_w1$residuals1)
 coordinates(resid_w1) <- c('Latitude','Longitude')
 proj4string(resid_w1) <- CRS("+init=epsg:4326")
-#resid_proj <- spTransform(resid_w1, CRS("+proj=longlat +datum=WGS84"))
+resid_proj <- spTransform(resid_w1, CRS("+proj=longlat +datum=WGS84"))
 
-plot(variogram(residuals1 ~ 1, data=resid_w1), pch=19, main = 'Sample Variogram')
+plot(variogram(residuals1 ~ 1, data=resid_w1), pch=19, main = 'Sample Variogram', xlab="distance [Km]")
 
-plot(variogram(residuals1 ~ Longitude, data=resid_w1), pch=19, main = 'Residual Variogram')
+plot(variogram(residuals1 ~ Longitude, data=resid_w1), pch=19, main = 'Residual Variogram', xlab="distance [Km]")
 
 #plot(variogram(residuals1 ~ Latitude, data=resid_w1), pch=19, main = 'Residual Variogram')
 
@@ -1309,10 +1310,10 @@ plot(variogram(residuals1 ~ Longitude, data=resid_w1), pch=19, main = 'Residual 
 coff <- 1200
 
 plot(variogram(residuals1 ~ 1, data=resid_w1,
-               cutoff = coff, width = coff/15), pch=19, main = paste('Sample Variogram, cutoff =',coff))
+               cutoff = coff, width = coff/15), pch=19, main = paste('Sample Variogram, cutoff =',coff), xlab="distance [Km]")
 
 plot(variogram(residuals1 ~ Longitude, data=resid_w1,
-               cutoff = coff, width = coff/15), pch=19, main = paste('Residual Variogram, cutoff =',coff))
+               cutoff = coff, width = coff/15), pch=19, main = paste('Residual Variogram, cutoff =',coff), xlab="distance [Km]")
 
 #plot(variogram(residuals1 ~ Latitude, data=resid_w1, cutoff = coff, width = coff/15), pch=19, main = paste('Residual Variogram, cutoff =',coff))
 
@@ -1320,7 +1321,7 @@ plot(variogram(residuals1 ~ Longitude, data=resid_w1,
 
 plot(variogram(residuals1 ~ Longitude, data=resid_w1,
                alpha = c(0, 45, 90, 135),
-               cutoff = coff, width = coff/15), pch=19, main = 'Directional Residual Variogram')
+               cutoff = coff, width = coff/15), pch=19, main = 'Directional Residual Variogram', xlab="distance [Km]")
 
 #plot(variogram(residuals1 ~ Latitude, data=resid_w1, alpha = c(0, 45, 90, 135), cutoff = coff, width = coff/15), pch=19, main = 'Directional Residual Variogram')
 
@@ -1344,18 +1345,18 @@ v.fit3 <- fit.variogram(v, vgm(1, "Gau", 500, 500))
 
 ## 3) fit the model using one of the possible fitting criteria
 
-plot(v, v.fit1, pch = 19, main="Exponential model")
-plot(v, v.fit2, pch = 19, main="Spherical model")
-plot(v, v.fit3, pch = 19, main="Gaussian model")
+plot(v, v.fit1, pch = 19, main="Exponential model", xlab="distance [Km]")
+plot(v, v.fit2, pch = 19, main="Spherical model", xlab="distance [Km]")
+plot(v, v.fit3, pch = 19, main="Gaussian model", xlab="distance [Km]")
 
 ## Problem: Anisotropy: alpha = 0, 45, 90, 135
 
 v <- variogram(residuals1 ~ Longitude, data=resid_w1,
                cutoff = coff, width = coff/15, alpha = c(0, 45, 90, 135))
 
-plot(v, v.fit1, pch = 19, main="Exponential model")
-plot(v, v.fit2, pch = 19, main="Spherical model")
-plot(v, v.fit3, pch = 19, main="Gaussian model")
+plot(v, v.fit1, pch = 19, main="Exponential model", xlab="distance [Km]")
+plot(v, v.fit2, pch = 19, main="Spherical model", xlab="distance [Km]")
+plot(v, v.fit3, pch = 19, main="Gaussian model", xlab="distance [Km]")
 
 # Goodness of Fit: Residual sum of squares
 c(attributes(v.fit1)$SSErr, attributes(v.fit2)$SSErr, attributes(v.fit3)$SSErr)
@@ -1707,23 +1708,23 @@ coordinates(resid_w2) <- c('Latitude','Longitude')
 proj4string(resid_w2) <- CRS("+init=epsg:4326")
 #resid_proj <- spTransform(resid_w2, CRS("+proj=longlat +datum=WGS84"))
 
-plot(variogram(residuals2 ~ 1, data=resid_w2), pch=19, main = 'Sample Variogram')
+plot(variogram(residuals2 ~ 1, data=resid_w2), pch=19, main = 'Sample Variogram', xlab="distance [Km]")
 
 #plot(variogram(residuals2 ~ Longitude, data=resid_w2), pch=19, main = 'Residual Variogram')
 
-plot(variogram(residuals2 ~ Latitude, data=resid_w2), pch=19, main = 'Residual Variogram')
+plot(variogram(residuals2 ~ Latitude, data=resid_w2), pch=19, main = 'Residual Variogram', xlab="distance [Km]")
 
 coff <- 1100  # Second best: 1300
 
 plot(variogram(residuals2 ~ 1, data=resid_w2,
-               cutoff = coff, width = coff/15), pch=19, main = paste('Sample Variogram, cutoff =',coff))
+               cutoff = coff, width = coff/15), pch=19, main = paste('Sample Variogram, cutoff =',coff), xlab="distance [Km]")
 
 plot(variogram(residuals2 ~ Latitude, data=resid_w2,
-               cutoff = coff, width = coff/15), pch=19, main = paste('Residual Variogram, cutoff =',coff))
+               cutoff = coff, width = coff/15), pch=19, main = paste('Residual Variogram, cutoff =',coff), xlab="distance [Km]")
 
 plot(variogram(residuals2 ~ Latitude, data=resid_w2,
                alpha = c(0, 45, 90, 135),
-               cutoff = coff, width = coff/15), pch=19, main = 'Directional Residual Variogram')
+               cutoff = coff, width = coff/15), pch=19, main = 'Directional Residual Variogram', xlab="distance [Km]")
 
 #plot(variogram(residuals2 ~ Latitude, data=resid_w2, cutoff = coff, width = coff/15, map = TRUE))
 
@@ -1742,18 +1743,18 @@ v.fit3 <- fit.variogram(v, vgm(1, "Gau", 500, 500))
 
 ## 3) fit the model using one of the possible fitting criteria
 
-plot(v, v.fit1, pch = 19, main="Exponential model")
-plot(v, v.fit2, pch = 19, main="Spherical model")
-plot(v, v.fit3, pch = 19, main="Gaussian model")
+plot(v, v.fit1, pch = 19, main="Exponential model", xlab="distance [Km]")
+plot(v, v.fit2, pch = 19, main="Spherical model", xlab="distance [Km]")
+plot(v, v.fit3, pch = 19, main="Gaussian model", xlab="distance [Km]")
 
 ## Problem: Anisotropy: alpha = 0, 45, 90, 135
 
 v <- variogram(residuals2 ~ Latitude, data=resid_w2,
                cutoff = coff, width = coff/15, alpha = c(0, 45, 90, 135))
 
-plot(v, v.fit1, pch = 19, main="Exponential model")
-plot(v, v.fit2, pch = 19, main="Spherical model")
-plot(v, v.fit3, pch = 19, main="Gaussian model")
+plot(v, v.fit1, pch = 19, main="Exponential model", xlab="distance [Km]")
+plot(v, v.fit2, pch = 19, main="Spherical model", xlab="distance [Km]")
+plot(v, v.fit3, pch = 19, main="Gaussian model", xlab="distance [Km]")
 
 # Goodness of Fit: Residual sum of squares, wins Sph
 c(attributes(v.fit1)$SSErr, attributes(v.fit2)$SSErr, attributes(v.fit3)$SSErr)
