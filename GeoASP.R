@@ -916,7 +916,6 @@ library(rgdal)  # Manage variogram distance in Km
 
 setwd('/home/fpjaa/Documents/GitHub/geostats-covid/')
 dataset <- read.csv("dataset.csv", header=TRUE, stringsAsFactors=FALSE)
-dataset <- dataset[,-c(2)]
 
 ## Set seed
 set.seed(22072022)
@@ -1007,7 +1006,12 @@ plot(nuts_polyg_tagged$geometry, col = mycolourscheme,
 legend("topleft", legend = levels(tags), col = my_colors, pch=1, cex=0.9,
        title="Cases density (wave 2)")
 
+#### Final dataset ----
+
+dataset <- dataset[,-c(2)]
 dataset <- na.omit(dataset)
+
+#### Map plots continued ----
 
 # Waves 1 and 2 initial configuration
 my_colors <- c(heat.colors(6, alpha = 1))[c(6,5,4,3,2)]
