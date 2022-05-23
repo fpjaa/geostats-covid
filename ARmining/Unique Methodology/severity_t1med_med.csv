@@ -1,0 +1,5 @@
+,0,1
+0,over_life_expectancy,not_over_available_hospital_beds_nuts2
+1,over_pop_density,not_over_utilised_agricultural_area
+2,over_pop_density,not_over_available_hospital_beds_nuts2
+3,not_over_available_hospital_beds_nuts2,not_over_utilised_agricultural_area
